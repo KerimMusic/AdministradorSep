@@ -1,53 +1,322 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Información - Omega Beats</title>
-    <!-- Enlace al archivo CSS -->
-    <link rel="stylesheet" href="style.css">
-    <!-- Enlace al archivo JavaScript (con defer para que cargue después del HTML) -->
-    <script src="script.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Administrativo — OmegaBeats</title>
+<link rel="stylesheet" href="admin.css">
 </head>
 <body>
 
-    <div class="container">
-        
-        <!-- Logo -->
-        <div class="logo-container">
-            <span class="logo-omega">Omega</span>
-            <span class="logo-beats">BEATS</span>
-        </div>
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>Panel <span>Administrativo</span></h1>
+    <p>Acceso exclusivo para administradores de OmegaBeats</p>
+    <button id="loginBtn" class="btn-google">
+      <svg width="18" height="18" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Iniciar sesión con Google
+    </button>
+    <div id="loginError" class="login-error"></div>
+  </div>
+</div>
 
-        <!-- Título -->
-        <h1>INFORMACION</h1>
-
-        <!-- Sección 1 -->
-        <h3>Beats 100 % originales</h3>
-        <p>Todos nuestros beats son 100 % originales y de creación propia. Cada producción es elaborada cuidadosamente para ofrecer una identidad sonora única, con atención en la calidad, el sonido y los detalles de cada composición.</p>
-
-        <!-- Sección 2 -->
-        <h3>Licencias comerciales — MP3 y WAV</h3>
-        <p>La compra de nuestros beats en formato MP3 o WAV corresponde a una licencia de uso comercial. Esto te permite utilizar el beat adquirido para desarrollar y publicar tus proyectos musicales de acuerdo con los términos y condiciones establecidos para la licencia.</p>
-        <p>Puedes utilizar nuestros beats para crear tus canciones, grabar voces, producir contenido musical y distribuir tus proyectos en las plataformas correspondientes, respetando siempre las condiciones de la licencia adquirida.</p>
-
-        <!-- Sección 3 -->
-        <h3>Licencia exclusiva</h3>
-        <p>Si buscas tener un beat completamente exclusivo para tu proyecto, puedes adquirir la licencia exclusiva. Al realizar la compra de una licencia exclusiva, el beat queda reservado para el artista que lo adquiere.</p>
-        <p>Esto significa que el beat adquirido bajo exclusividad no volverá a venderse ni licenciarse a ningún otro artista. De esta manera, podrás trabajar tu canción con la seguridad de contar con una producción única y exclusiva para tu proyecto.</p>
-
-        <!-- Sección 4 -->
-        <h3>Calidad y originalidad</h3>
-        <p>Nos enfocamos en ofrecer producciones originales y de calidad para artistas que buscan diferenciarse. Cada beat es creado desde cero y pensado para brindar una base profesional sobre la cual puedas desarrollar tu propia identidad musical.</p>
-
-        <!-- Párrafo final -->
-        <p>Antes de realizar tu compra, te recomendamos revisar cuidadosamente los términos y condiciones de la licencia correspondiente al beat que deseas adquirir, ya que los derechos de uso pueden variar según el tipo de licencia seleccionada.</p>
-        <p>Elige tu beat, crea tu música y lleva tu proyecto al siguiente nivel.</p>
-
-        <!-- Firma -->
-        <div class="signature">Amanda</div>
-
+<!-- ═══════════ APP ═══════════ -->
+<div id="appScreen">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="menu-toggle" id="menuToggle">☰</button>
+      <div class="topbar-brand">🎵 Omega<span>Beats</span> · Admin</div>
     </div>
+    <div class="topbar-user">
+      <span class="email" id="userEmail">—</span>
+      <img id="userPic" src="" alt="">
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">Salir</button>
+    </div>
+  </div>
 
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <button class="nav-item active" data-view="dashboard"><span class="icon">📊</span>Dashboard</button>
+      <button class="nav-item" data-view="solicitudes"><span class="icon">📥</span>Solicitudes<span class="count" id="cntPendientes">0</span></button>
+      <button class="nav-item" data-view="activas"><span class="icon">✅</span>Suscripciones activas<span class="count" id="cntActivas">0</span></button>
+      <button class="nav-item" data-view="porvencer"><span class="icon">⏰</span>Próximas a vencer</button>
+      <button class="nav-item" data-view="expiradas"><span class="icon">❌</span>Expiradas</button>
+      <button class="nav-item" data-view="historial"><span class="icon">📜</span>Historial de pagos</button>
+      <button class="nav-item" data-view="usuarios"><span class="icon">👥</span>Usuarios</button>
+      <button class="nav-item" data-view="configPagos"><span class="icon">🏦</span>Config. pagos</button>
+      <button class="nav-item" data-view="configPlanes"><span class="icon">💵</span>Config. planes</button>
+      <button class="nav-item" data-view="actividad"><span class="icon">📝</span>Actividad admin</button>
+    </aside>
+
+    <main class="main">
+
+      <!-- DASHBOARD -->
+      <section class="view active" id="view-dashboard">
+        <div class="view-header">
+          <div><h2>Dashboard</h2><p>Resumen general del sistema de suscripciones</p></div>
+          <div class="view-actions">
+            <button class="btn btn-ghost btn-sm" id="refreshDash">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">📥 Pendientes</div><div class="stat-value yellow" id="statPendientes">0</div></div>
+          <div class="stat-card"><div class="stat-label">✅ Activas</div><div class="stat-value green" id="statActivas">0</div></div>
+          <div class="stat-card"><div class="stat-label">⏰ Próximas a vencer</div><div class="stat-value yellow" id="statPorVencer">0</div></div>
+          <div class="stat-card"><div class="stat-label">❌ Expiradas</div><div class="stat-value red" id="statExpiradas">0</div></div>
+          <div class="stat-card"><div class="stat-label">👍 Pagos aprobados</div><div class="stat-value green" id="statAprobados">0</div></div>
+          <div class="stat-card"><div class="stat-label">👎 Pagos rechazados</div><div class="stat-value red" id="statRechazados">0</div></div>
+          <div class="stat-card"><div class="stat-label">📅 Suscripciones mensuales</div><div class="stat-value blue" id="statMensuales">0</div></div>
+          <div class="stat-card"><div class="stat-label">📆 Suscripciones anuales</div><div class="stat-value blue" id="statAnuales">0</div></div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Estado</th><th>Fecha solicitud</th></tr></thead>
+              <tbody id="dashUltimasSolicitudes"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SOLICITUDES -->
+      <section class="view" id="view-solicitudes">
+        <div class="view-header">
+          <div><h2>Solicitudes de suscripción</h2><p>Pagos pendientes de revisión</p></div>
+          <div class="view-actions">
+            <button class="btn btn-ghost btn-sm" id="refreshSolicitudes">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="search-box"><input id="searchSolicitudes" placeholder="Buscar por nombre, correo, UID o teléfono..."></div>
+        <div class="table-wrap"><div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Usuario</th><th>Correo</th><th>UID</th><th>Teléfono</th>
+              <th>Plan</th><th>Precio</th><th>Fecha</th><th>Estado</th><th>Comprobante</th><th>Acciones</th>
+            </tr></thead>
+            <tbody id="tablaSolicitudes"></tbody>
+          </table>
+        </div></div>
+      </section>
+
+      <!-- ACTIVAS -->
+      <section class="view" id="view-activas">
+        <div class="view-header">
+          <div><h2>Suscripciones activas</h2><p>Usuarios con suscripción vigente</p></div>
+          <div class="view-actions">
+            <button class="btn btn-ghost btn-sm" id="refreshActivas">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="search-box"><input id="searchActivas" placeholder="Buscar suscriptor..."></div>
+        <div class="table-wrap"><div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th>
+              <th>Vencimiento</th><th>Días restantes</th><th>Estado</th><th>Acciones</th>
+            </tr></thead>
+            <tbody id="tablaActivas"></tbody>
+          </table>
+        </div></div>
+      </section>
+
+      <!-- POR VENCER -->
+      <section class="view" id="view-porvencer">
+        <div class="view-header">
+          <div><h2>Próximas a vencer</h2><p>Suscripciones que terminarán pronto</p></div>
+        </div>
+        <div class="table-wrap"><div class="table-scroll">
+          <table>
+            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Vencimiento</th><th>Días restantes</th><th>Acciones</th></tr></thead>
+            <tbody id="tablaPorVencer"></tbody>
+          </table>
+        </div></div>
+      </section>
+
+      <!-- EXPIRADAS -->
+      <section class="view" id="view-expiradas">
+        <div class="view-header">
+          <div><h2>Suscripciones expiradas</h2><p>Historial de suscripciones terminadas</p></div>
+        </div>
+        <div class="table-wrap"><div class="table-scroll">
+          <table>
+            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th><th>Vencimiento</th><th>Acciones</th></tr></thead>
+            <tbody id="tablaExpiradas"></tbody>
+          </table>
+        </div></div>
+      </section>
+
+      <!-- HISTORIAL -->
+      <section class="view" id="view-historial">
+        <div class="view-header">
+          <div><h2>Historial de pagos</h2><p>Todos los pagos aprobados y rechazados</p></div>
+        </div>
+        <div class="search-box"><input id="searchHistorial" placeholder="Buscar en el historial..."></div>
+        <div class="table-wrap"><div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>Usuario</th><th>Correo</th><th>Plan</th><th>Precio</th>
+              <th>Fecha solicitud</th><th>Estado</th><th>Aprobado/Rechazado por</th><th>Fecha resolución</th><th>Comprobante</th>
+            </tr></thead>
+            <tbody id="tablaHistorial"></tbody>
+          </table>
+        </div></div>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="view" id="view-usuarios">
+        <div class="view-header">
+          <div><h2>Buscar usuarios</h2><p>Busca por nombre, correo, UID o teléfono</p></div>
+        </div>
+        <div class="search-box"><input id="searchUsuarios" placeholder="Ej: Juan, correo@dominio.com, UID..."></div>
+        <div id="resultadoUsuarios" class="empty">Escribe algo para buscar usuarios</div>
+      </section>
+
+      <!-- CONFIG PAGOS -->
+      <section class="view" id="view-configPagos">
+        <div class="view-header">
+          <div><h2>Configuración de datos de pago</h2><p>Datos bancarios que ven los usuarios</p></div>
+        </div>
+        <div class="table-wrap" style="padding:24px">
+          <label class="cfg-label">Banco</label>
+          <input id="cfgBanco" class="cfg-input">
+
+          <label class="cfg-label">Titular</label>
+          <input id="cfgTitular" class="cfg-input">
+
+          <label class="cfg-label">CLABE</label>
+          <input id="cfgClabe" class="cfg-input">
+
+          <label class="cfg-label">Cuenta</label>
+          <input id="cfgCuenta" class="cfg-input">
+
+          <label class="cfg-label">WhatsApp soporte (con código de país, sin +)</label>
+          <input id="cfgWhats" class="cfg-input">
+
+          <label class="cfg-label">Instrucciones</label>
+          <textarea id="cfgInstrucciones" class="cfg-textarea"></textarea>
+
+          <div style="margin-top:20px">
+            <button class="btn btn-primary" id="saveConfigPagos">💾 Guardar cambios</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFIG PLANES -->
+      <section class="view" id="view-configPlanes">
+        <div class="view-header">
+          <div><h2>Configuración de planes</h2><p>Precios y duración (afecta nuevos pagos)</p></div>
+        </div>
+        <div class="table-wrap" style="padding:24px">
+          <h3 style="margin:0 0 12px;font-size:15px">📅 Suscripción Mensual</h3>
+          <label class="cfg-label">Precio MXN</label>
+          <input id="cfgMensualPrecio" type="number" step="0.01" class="cfg-input">
+          <label class="cfg-label">Duración (meses)</label>
+          <input id="cfgMensualDur" type="number" class="cfg-input" style="margin-bottom:24px">
+
+          <h3 style="margin:0 0 12px;font-size:15px">📆 Suscripción Anual</h3>
+          <label class="cfg-label">Precio MXN</label>
+          <input id="cfgAnualPrecio" type="number" step="0.01" class="cfg-input">
+          <label class="cfg-label">Duración (meses)</label>
+          <input id="cfgAnualDur" type="number" class="cfg-input" style="margin-bottom:24px">
+
+          <button class="btn btn-primary" id="saveConfigPlanes">💾 Guardar cambios</button>
+          <p style="font-size:12px;color:var(--text2);margin-top:12px">⚠️ Las suscripciones ya activas no cambian automáticamente.</p>
+        </div>
+      </section>
+
+      <!-- ACTIVIDAD -->
+      <section class="view" id="view-actividad">
+        <div class="view-header">
+          <div><h2>Actividad administrativa</h2><p>Registro de acciones realizadas por administradores</p></div>
+        </div>
+        <div class="table-wrap"><div class="table-scroll">
+          <table>
+            <thead><tr><th>Fecha</th><th>Administrador</th><th>Acción</th><th>Usuario afectado</th><th>Detalles</th></tr></thead>
+            <tbody id="tablaActividad"></tbody>
+          </table>
+        </div></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ═══════════ MODALES ═══════════ -->
+
+<div class="modal" id="modalImg">
+  <div class="modal-box wide">
+    <button class="modal-close" data-close="modalImg">×</button>
+    <h2>Comprobante de pago</h2>
+    <div id="imgViewer"><div class="loading-full">Cargando imagen...</div></div>
+  </div>
+</div>
+
+<div class="modal" id="modalDetalle">
+  <div class="modal-box wide">
+    <button class="modal-close" data-close="modalDetalle">×</button>
+    <h2>Detalle de suscripción</h2>
+    <div id="detalleContenido"></div>
+  </div>
+</div>
+
+<div class="modal" id="modalConfirm">
+  <div class="modal-box">
+    <button class="modal-close" data-close="modalConfirm">×</button>
+    <h2 id="confirmTitle">Confirmar</h2>
+    <p class="confirm-text" id="confirmText"></p>
+    <div id="confirmExtra"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="confirmCancel">Cancelar</button>
+      <button class="btn btn-primary" id="confirmOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modalRenovar">
+  <div class="modal-box">
+    <button class="modal-close" data-close="modalRenovar">×</button>
+    <h2>Renovar suscripción</h2>
+    <p class="confirm-text" id="renovarUser"></p>
+    <label>Nuevo plan</label>
+    <select id="renovarPlan">
+      <option value="mensual">Mensual — $399.90 MXN</option>
+      <option value="anual">Anual — $500.00 MXN</option>
+    </select>
+    <label>Motivo (opcional)</label>
+    <textarea id="renovarMotivo" placeholder="Ej: Pago confirmado por transferencia directa..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close="modalRenovar">Cancelar</button>
+      <button class="btn btn-primary" id="renovarOk">Renovar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modalActivar">
+  <div class="modal-box">
+    <button class="modal-close" data-close="modalActivar">×</button>
+    <h2>Activar manualmente</h2>
+    <p class="confirm-text" id="activarUser"></p>
+    <label>Plan</label>
+    <select id="activarPlan">
+      <option value="mensual">Mensual — $399.90 MXN</option>
+      <option value="anual">Anual — $500.00 MXN</option>
+    </select>
+    <label>Motivo de la activación manual *</label>
+    <textarea id="activarMotivo" placeholder="Ej: Pago recibido en efectivo..." required></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close="modalActivar">Cancelar</button>
+      <button class="btn btn-primary" id="activarOk">Activar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="admin.js"></script>
 </body>
 </html>
