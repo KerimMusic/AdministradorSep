@@ -16,7 +16,6 @@
 
 body{background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
 
-/* ═══ LOGIN ═══ */
 #loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
 .login-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:40px 32px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)}
 .login-card h1{font-size:26px;margin-bottom:8px;letter-spacing:-.5px}
@@ -28,7 +27,6 @@ body{background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
 .login-error{background:#2a1414;border:1px solid #4a1414;color:var(--danger);padding:12px;border-radius:10px;font-size:13px;margin-top:16px;display:none}
 .login-error.show{display:block}
 
-/* ═══ APP ═══ */
 #appScreen{display:none;min-height:100vh}
 #appScreen.active{display:block}
 
@@ -138,7 +136,6 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
 .toast.warn{border-left-color:var(--warn)}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 
-/* Config forms */
 .cfg-label{display:block;margin-bottom:5px;font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
 .cfg-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:11px 13px;border-radius:9px;font-size:14px;outline:none;margin-bottom:14px}
 .cfg-input:focus{border-color:var(--accent)}
