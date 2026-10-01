@@ -1,11 +1,8 @@
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-/* ══════════════════════════════════════════════════════
-   CONFIGURACIÓN FIREBASE (misma que OmegaBeats)
-   ══════════════════════════════════════════════════════ */
 const firebaseConfig = {
   apiKey: "AIzaSyDMabE70hIApcNU5RY3_WEEIF-BWUzO0K4",
   authDomain: "kerim-music-a9c46.firebaseapp.com",
@@ -24,9 +21,6 @@ const provider = new GoogleAuthProvider();
 
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-/* ══════════════════════════════════════════════════════
-   ESTADO GLOBAL
-   ══════════════════════════════════════════════════════ */
 let adminActual = null;
 let suscripciones = [];
 let historial = [];
@@ -35,9 +29,6 @@ let configPagos = {};
 let configPlanes = { mensual:{precio:399.90, meses:1}, anual:{precio:500.00, meses:12} };
 let diasAvisoVencer = 7;
 
-/* ══════════════════════════════════════════════════════
-   UTILIDADES
-   ══════════════════════════════════════════════════════ */
 const aFecha = t => t?.toDate ? t.toDate() : (t ? new Date(t) : null);
 const fmtFecha = f => f ? f.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
 const fmtFechaHora = f => f ? f.toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
@@ -65,9 +56,6 @@ document.querySelectorAll('.modal').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
-/* ══════════════════════════════════════════════════════
-   LOGIN
-   ══════════════════════════════════════════════════════ */
 const loginBtn = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
 
@@ -94,9 +82,6 @@ loginBtn.addEventListener('click', async () => {
   }
 });
 
-/* ══════════════════════════════════════════════════════
-   AUTH STATE — Verifica admin
-   ══════════════════════════════════════════════════════ */
 onAuthStateChanged(auth, async user => {
   if (!user) {
     adminActual = null;
@@ -137,9 +122,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   await signOut(auth);
 });
 
-/* ══════════════════════════════════════════════════════
-   NAVEGACIÓN
-   ══════════════════════════════════════════════════════ */
 document.querySelectorAll('.nav-item').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -154,9 +136,6 @@ document.getElementById('menuToggle').onclick = () => {
   document.getElementById('sidebar').classList.toggle('open');
 };
 
-/* ══════════════════════════════════════════════════════
-   CARGA DE DATOS
-   ══════════════════════════════════════════════════════ */
 async function cargarConfigs() {
   try {
     const snapP = await getDoc(doc(db, 'config', 'pagos'));
@@ -247,9 +226,6 @@ async function cargarActividad() {
   } catch (e) { console.error('cargarActividad:', e); }
 }
 
-/* ══════════════════════════════════════════════════════
-   REGISTRAR ACTIVIDAD
-   ══════════════════════════════════════════════════════ */
 async function registrarActividad(accion, usuarioAfectado, detalles = {}) {
   try {
     await addDoc(collection(db, 'actividad_admin'), {
@@ -266,9 +242,6 @@ async function registrarActividad(accion, usuarioAfectado, detalles = {}) {
   } catch (e) { console.warn('No se pudo registrar actividad:', e); }
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — DASHBOARD
-   ══════════════════════════════════════════════════════ */
 function renderDashboard() {
   const pend = suscripciones.filter(s => s._estadoEfectivo === 'pendiente');
   const act  = suscripciones.filter(s => s._estadoEfectivo === 'activa');
@@ -319,9 +292,6 @@ function actualizarContadoresMenu() {
   document.getElementById('cntActivas').textContent = act;
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — SOLICITUDES
-   ══════════════════════════════════════════════════════ */
 function renderSolicitudes(filtro = '') {
   const q = filtro.toLowerCase().trim();
   let lista = suscripciones.filter(s => s._estadoEfectivo === 'pendiente');
@@ -361,9 +331,6 @@ function renderSolicitudes(filtro = '') {
     </tr>`).join('');
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — ACTIVAS
-   ══════════════════════════════════════════════════════ */
 function renderActivas(filtro = '') {
   const q = filtro.toLowerCase().trim();
   let lista = suscripciones.filter(s => s._estadoEfectivo === 'activa');
@@ -398,9 +365,6 @@ function renderActivas(filtro = '') {
   }).join('');
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — POR VENCER
-   ══════════════════════════════════════════════════════ */
 function renderPorVencer() {
   const lista = suscripciones.filter(s => s._estadoEfectivo === 'activa')
     .filter(s => {
@@ -429,9 +393,6 @@ function renderPorVencer() {
   }).join('');
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — EXPIRADAS
-   ══════════════════════════════════════════════════════ */
 function renderExpiradas() {
   const lista = suscripciones.filter(s => s._estadoEfectivo === 'expirada');
   const tb = document.getElementById('tablaExpiradas');
@@ -450,9 +411,6 @@ function renderExpiradas() {
     </tr>`).join('');
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — HISTORIAL
-   ══════════════════════════════════════════════════════ */
 function renderHistorial(filtro = '') {
   const q = filtro.toLowerCase().trim();
   let lista = historial;
@@ -482,9 +440,6 @@ function renderHistorial(filtro = '') {
     </tr>`).join('');
 }
 
-/* ══════════════════════════════════════════════════════
-   RENDER — ACTIVIDAD
-   ══════════════════════════════════════════════════════ */
 function renderActividad() {
   const tb = document.getElementById('tablaActividad');
   if (!actividad.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No hay actividad registrada</td></tr>'; return; }
@@ -498,9 +453,6 @@ function renderActividad() {
     </tr>`).join('');
 }
 
-/* ══════════════════════════════════════════════════════
-   VER COMPROBANTE
-   ══════════════════════════════════════════════════════ */
 window.verComprobante = async (url) => {
   const cont = document.getElementById('imgViewer');
   cont.innerHTML = '<div class="loading-full">Cargando imagen...</div>';
@@ -512,9 +464,6 @@ window.verComprobante = async (url) => {
   img.style.cssText = 'width:100%;border-radius:10px;display:block;background:#000';
 };
 
-/* ══════════════════════════════════════════════════════
-   CONFIRMACIÓN GENÉRICA
-   ══════════════════════════════════════════════════════ */
 let _confirmCb = null;
 function confirmar(titulo, texto, onOk, extraHTML = '', textoOk = 'Confirmar', tipoOk = 'primary') {
   document.getElementById('confirmTitle').textContent = titulo;
@@ -536,9 +485,6 @@ document.getElementById('confirmOk').onclick = async () => {
   }
 };
 
-/* ══════════════════════════════════════════════════════
-   APROBAR PAGO
-   ══════════════════════════════════════════════════════ */
 window.aprobarPago = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return toast('No se encontró la suscripción', 'error');
@@ -589,9 +535,6 @@ window.aprobarPago = (uid) => {
   );
 };
 
-/* ══════════════════════════════════════════════════════
-   RECHAZAR PAGO
-   ══════════════════════════════════════════════════════ */
 window.rechazarPago = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return toast('No se encontró la suscripción', 'error');
@@ -633,9 +576,6 @@ window.rechazarPago = (uid) => {
   );
 };
 
-/* ══════════════════════════════════════════════════════
-   DETALLE
-   ══════════════════════════════════════════════════════ */
 window.verDetalle = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return toast('No se encontró', 'error');
@@ -681,9 +621,6 @@ window.verDetalle = (uid) => {
   openModal('modalDetalle');
 };
 
-/* ══════════════════════════════════════════════════════
-   ACTIVAR MANUALMENTE
-   ══════════════════════════════════════════════════════ */
 window.abrirActivar = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return;
@@ -735,9 +672,6 @@ async function activarManual(uid) {
   } catch (e) { console.error(e); toast('Error: ' + e.message, 'error'); }
 }
 
-/* ══════════════════════════════════════════════════════
-   RENOVAR
-   ══════════════════════════════════════════════════════ */
 window.abrirRenovar = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return;
@@ -790,9 +724,6 @@ async function renovar(uid) {
   } catch (e) { console.error(e); toast('Error: ' + e.message, 'error'); }
 }
 
-/* ══════════════════════════════════════════════════════
-   CAMBIAR FECHA
-   ══════════════════════════════════════════════════════ */
 window.cambiarFecha = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return;
@@ -828,9 +759,6 @@ window.cambiarFecha = (uid) => {
   );
 };
 
-/* ══════════════════════════════════════════════════════
-   SUSPENDER
-   ══════════════════════════════════════════════════════ */
 window.suspender = (uid) => {
   const s = suscripciones.find(x => x.uid === uid || x._id === uid);
   if (!s) return;
@@ -856,9 +784,6 @@ window.suspender = (uid) => {
   );
 };
 
-/* ══════════════════════════════════════════════════════
-   BUSCADOR DE USUARIOS
-   ══════════════════════════════════════════════════════ */
 document.getElementById('searchUsuarios').addEventListener('input', (e) => {
   const q = e.target.value.toLowerCase().trim();
   const cont = document.getElementById('resultadoUsuarios');
@@ -887,16 +812,10 @@ document.getElementById('searchUsuarios').addEventListener('input', (e) => {
   </table></div></div>`;
 });
 
-/* ══════════════════════════════════════════════════════
-   FILTROS
-   ══════════════════════════════════════════════════════ */
 document.getElementById('searchSolicitudes').addEventListener('input', e => renderSolicitudes(e.target.value));
 document.getElementById('searchActivas').addEventListener('input', e => renderActivas(e.target.value));
 document.getElementById('searchHistorial').addEventListener('input', e => renderHistorial(e.target.value));
 
-/* ══════════════════════════════════════════════════════
-   REFRESH
-   ══════════════════════════════════════════════════════ */
 ['refreshDash','refreshSolicitudes','refreshActivas'].forEach(id => {
   document.getElementById(id)?.addEventListener('click', async () => {
     toast('Actualizando...');
@@ -905,9 +824,6 @@ document.getElementById('searchHistorial').addEventListener('input', e => render
   });
 });
 
-/* ══════════════════════════════════════════════════════
-   GUARDAR CONFIGS
-   ══════════════════════════════════════════════════════ */
 document.getElementById('saveConfigPagos').addEventListener('click', async () => {
   try {
     const datos = {
