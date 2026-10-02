@@ -38,9 +38,6 @@ let suscripciones = [];
    ═══════════════════════════════════════════════════════════ */
 const aFecha = t => t?.toDate ? t.toDate() : (t ? new Date(t) : null);
 const fmtFecha = f => f ? f.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
-const fmtFechaHora = f => f ? f.toLocaleString('es-MX', {
-  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-}) : '—';
 const fmtDinero = n => '$' + Number(n || 0).toLocaleString('es-MX', {
   minimumFractionDigits: 2, maximumFractionDigits: 2
 }) + ' MXN';
@@ -61,7 +58,6 @@ function labelEstado(estado) {
   return ESTADOS[estado]?.label || '🟡 Pago en revisión';
 }
 
-/* Convierte link de Dropbox a modo directo */
 function dropboxDirecto(url) {
   if (!url) return '';
   return url.trim()
@@ -71,16 +67,15 @@ function dropboxDirecto(url) {
     .replace('?raw=1', '');
 }
 
-/* Toast */
 function toast(msg, tipo = 'ok') {
   const t = document.getElementById('toast');
+  if (!t) return;
   t.textContent = msg;
   t.className = 'toast show' + (tipo === 'error' ? ' error' : tipo === 'warn' ? ' warn' : '');
   clearTimeout(t._t);
   t._t = setTimeout(() => t.classList.remove('show'), 3500);
 }
 
-/* Modales */
 const openModal  = id => document.getElementById(id)?.classList.add('open');
 const closeModal = id => document.getElementById(id)?.classList.remove('open');
 window.closeModal = closeModal;
@@ -130,14 +125,34 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // ⚠️ SIN verificación de admin — cualquier cuenta Google entra
+  // ✅ VERIFICACIÓN: solo admins pueden entrar
+  try {
+    const snap = await getDoc(doc(db, 'admins', user.uid));
+    if (!snap.exists()) {
+      await signOut(auth);
+      loginError.textContent = '🚫 Esta cuenta no tiene permisos de administrador.';
+      loginError.classList.add('show');
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = 'Iniciar sesión con Google';
+      return;
+    }
+  } catch (e) {
+    console.error('Verificación admin:', e);
+    await signOut(auth);
+    loginError.textContent = 'Error verificando permisos: ' + e.message;
+    loginError.classList.add('show');
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = 'Iniciar sesión con Google';
+    return;
+  }
+
+  // ✅ Admin confirmado
   adminActual = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').classList.add('active');
   document.getElementById('userEmail').textContent = user.email || '';
   document.getElementById('userPic').src = user.photoURL || '';
 
-  // Escuchar suscripciones en tiempo real
   escucharSuscripciones();
 });
 
@@ -173,7 +188,6 @@ function escucharSuscripciones() {
   unsubscribeSusc = onSnapshot(ref, (snap) => {
     suscripciones = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
 
-    // Calcular estado efectivo (si está activa pero vencida → expirada visual)
     const ahora = new Date();
     suscripciones.forEach(s => {
       if (s.estado === 'activa') {
@@ -207,8 +221,10 @@ function renderTodo() {
 function actualizarContadoresMenu() {
   const pend = suscripciones.filter(s => s._estadoEfectivo === 'pendiente').length;
   const act  = suscripciones.filter(s => s._estadoEfectivo === 'activa').length;
-  document.getElementById('cntPendientes').textContent = pend;
-  document.getElementById('cntActivas').textContent = act;
+  const elP = document.getElementById('cntPendientes');
+  const elA = document.getElementById('cntActivas');
+  if (elP) elP.textContent = pend;
+  if (elA) elA.textContent = act;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -227,14 +243,15 @@ function renderDashboard() {
   const mens = act.filter(s => s.plan === 'mensual').length;
   const anua = act.filter(s => s.plan === 'anual').length;
 
-  document.getElementById('statPendientes').textContent = pend.length;
-  document.getElementById('statActivas').textContent = act.length;
-  document.getElementById('statPorVencer').textContent = porV.length;
-  document.getElementById('statExpiradas').textContent = exp.length;
-  document.getElementById('statAprobados').textContent = apro;
-  document.getElementById('statRechazados').textContent = rech;
-  document.getElementById('statMensuales').textContent = mens;
-  document.getElementById('statAnuales').textContent = anua;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('statPendientes', pend.length);
+  set('statActivas', act.length);
+  set('statPorVencer', porV.length);
+  set('statExpiradas', exp.length);
+  set('statAprobados', apro);
+  set('statRechazados', rech);
+  set('statMensuales', mens);
+  set('statAnuales', anua);
 
   const recientes = [...suscripciones].sort((a, b) => {
     const fa = aFecha(a.fechaSolicitud)?.getTime() || 0;
@@ -243,6 +260,7 @@ function renderDashboard() {
   }).slice(0, 10);
 
   const tb = document.getElementById('dashUltimasSolicitudes');
+  if (!tb) return;
   if (!recientes.length) {
     tb.innerHTML = '<tr><td colspan="5" class="empty">No hay solicitudes registradas</td></tr>';
     return;
@@ -258,7 +276,7 @@ function renderDashboard() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   SOLICITUDES (pendientes + todas)
+   SOLICITUDES (todas las suscripciones)
    ═══════════════════════════════════════════════════════════ */
 function renderSolicitudes(filtro = '') {
   const q = filtro.toLowerCase().trim();
@@ -279,6 +297,7 @@ function renderSolicitudes(filtro = '') {
   });
 
   const tb = document.getElementById('tablaSolicitudes');
+  if (!tb) return;
   if (!lista.length) {
     tb.innerHTML = '<tr><td colspan="8" class="empty">No hay solicitudes registradas</td></tr>';
     return;
@@ -290,7 +309,7 @@ function renderSolicitudes(filtro = '') {
       <td>${escapeHtml(s.correo || '—')}</td>
       <td style="font-family:monospace;font-size:11px">${escapeHtml(s.uid || '—')}</td>
       <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtDinero(s.precio)}</td>
+      <td>${fmtDinero(s.precio || s.monto)}</td>
       <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
       <td>
         <select class="estado-select" data-uid="${escapeHtml(s.uid)}" data-estado="${escapeHtml(s.estado || 'pendiente')}">
@@ -308,9 +327,7 @@ function renderSolicitudes(filtro = '') {
   `).join('');
 
   tb.querySelectorAll('.estado-select').forEach(sel => {
-    sel.addEventListener('change', () => {
-      cambiarEstado(sel.dataset.uid, sel.value, sel);
-    });
+    sel.addEventListener('change', () => cambiarEstado(sel.dataset.uid, sel.value, sel));
   });
 }
 
@@ -328,6 +345,7 @@ function renderActivas(filtro = '') {
     );
   }
   const tb = document.getElementById('tablaActivas');
+  if (!tb) return;
   if (!lista.length) {
     tb.innerHTML = '<tr><td colspan="8" class="empty">No hay suscripciones activas</td></tr>';
     return;
@@ -368,6 +386,7 @@ function renderPorVencer() {
     .sort((a, b) => diasRestantes(aFecha(a.fechaVencimiento)) - diasRestantes(aFecha(b.fechaVencimiento)));
 
   const tb = document.getElementById('tablaPorVencer');
+  if (!tb) return;
   if (!lista.length) {
     tb.innerHTML = '<tr><td colspan="6" class="empty">No hay suscripciones próximas a vencer</td></tr>';
     return;
@@ -399,6 +418,7 @@ function renderPorVencer() {
 function renderExpiradas() {
   const lista = suscripciones.filter(s => s._estadoEfectivo === 'expirada');
   const tb = document.getElementById('tablaExpiradas');
+  if (!tb) return;
   if (!lista.length) {
     tb.innerHTML = '<tr><td colspan="6" class="empty">No hay suscripciones expiradas</td></tr>';
     return;
@@ -437,6 +457,7 @@ function renderHistorial(filtro = '') {
     );
   }
   const tb = document.getElementById('tablaHistorial');
+  if (!tb) return;
   if (!lista.length) {
     tb.innerHTML = '<tr><td colspan="8" class="empty">No hay pagos en el historial</td></tr>';
     return;
@@ -446,7 +467,7 @@ function renderHistorial(filtro = '') {
       <td>${escapeHtml(s.nombre || '—')}</td>
       <td>${escapeHtml(s.correo || '—')}</td>
       <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtDinero(s.precio)}</td>
+      <td>${fmtDinero(s.precio || s.monto)}</td>
       <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
       <td><span class="badge ${s.estado}">${labelEstado(s.estado)}</span></td>
       <td>${escapeHtml(s.resueltoPor || '—')}</td>
@@ -471,6 +492,7 @@ window.verComprobante = (uid) => {
   }
 
   const cont = document.getElementById('imgViewer');
+  if (!cont) return;
   cont.innerHTML = '<div class="loading-full">Cargando comprobante...</div>';
   openModal('modalImg');
 
