@@ -5,8 +5,8 @@ import {
   setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, getDoc, doc, setDoc,
-  updateDoc, addDoc, serverTimestamp, Timestamp, onSnapshot
+  getFirestore, collection, getDoc, doc, updateDoc,
+  addDoc, serverTimestamp, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -16,7 +16,7 @@ const firebaseConfig = {
   storageBucket: "kerim-music-a9c46.firebasestorage.app",
   messagingSenderId: "470731440209",
   appId: "1:470731440209:web:f6eba4784027a5d8c57870",
-  measurementId: "G-LBHTKL8KDK"
+  measurementId: "G-LBHTKL8KD8"
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -32,39 +32,36 @@ setPersistence(auth, browserLocalPersistence).catch(() => {});
 let adminActual = null;
 let unsubscribeSusc = null;
 let suscripciones = [];
-let filtroSolicitudes = 'pendiente';
+let seleccionadaId = null;
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
    ═══════════════════════════════════════════════════════════ */
 const aFecha = t => t?.toDate ? t.toDate() : (t ? new Date(t) : null);
-const fmtFecha = f => f ? f.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+const fmtFecha = f => {
+  if (!f) return '—';
+  return f.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' })
+    + ' ' + f.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+};
+
+const fmtFechaCorta = f => f
+  ? f.toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' })
+  : '—';
+
 const fmtDinero = n => '$' + Number(n || 0).toLocaleString('es-MX', {
   minimumFractionDigits: 2, maximumFractionDigits: 2
 }) + ' MXN';
+
 const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[c]));
 
-const diasRestantes = venc => venc ? Math.ceil((venc - new Date()) / 86400000) : 0;
-
-/* Mapeo estado → label visual */
-const ESTADOS_UI = {
-  pendiente: { label: '🟡 Pago en revisión', badge: 'pendiente' },
-  activa:    { label: '🟢 Pago aprobado',    badge: 'activa' },
-  rechazada: { label: '🔴 Pago rechazado',   badge: 'rechazada' }
-};
-
-/* Normaliza cualquier variante de estado a los 3 valores internos */
 function normalizarEstado(estado) {
   const e = String(estado || 'pendiente').toLowerCase().trim();
   if (['activa','activo','aprobada','aprobado','pago aprobado'].includes(e)) return 'activa';
   if (['rechazada','rechazado','pago rechazado'].includes(e)) return 'rechazada';
   return 'pendiente';
-}
-
-function labelEstado(estado) {
-  return ESTADOS_UI[normalizarEstado(estado)].label;
 }
 
 function dropboxDirecto(url) {
@@ -87,7 +84,6 @@ function toast(msg, tipo = 'ok') {
 
 const openModal  = id => document.getElementById(id)?.classList.add('open');
 const closeModal = id => document.getElementById(id)?.classList.remove('open');
-window.closeModal = closeModal;
 
 document.querySelectorAll('[data-close]').forEach(el => {
   el.onclick = () => closeModal(el.dataset.close);
@@ -134,7 +130,7 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // ✅ VERIFICACIÓN: solo admins pueden entrar
+  // Verificar que sea admin
   try {
     const snap = await getDoc(doc(db, 'admins', user.uid));
     if (!snap.exists()) {
@@ -155,477 +151,206 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // ✅ Admin confirmado
   adminActual = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').classList.add('active');
-  document.getElementById('userEmail').textContent = user.email || '';
   document.getElementById('userPic').src = user.photoURL || '';
 
   escucharSuscripciones();
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-  if (!confirm('¿Cerrar sesión?')) return;
-  await signOut(auth);
-});
-
 /* ═══════════════════════════════════════════════════════════
-   NAVEGACIÓN
-   ═══════════════════════════════════════════════════════════ */
-document.querySelectorAll('.nav-item').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById('view-' + btn.dataset.view)?.classList.add('active');
-    document.getElementById('sidebar').classList.remove('open');
-  };
-});
-
-document.getElementById('menuToggle').onclick = () => {
-  document.getElementById('sidebar').classList.toggle('open');
-};
-
-/* ═══════════════════════════════════════════════════════════
-   ESCUCHAR SUSCRIPCIONES EN TIEMPO REAL
+   ESCUCHAR FIREBASE EN TIEMPO REAL
    ═══════════════════════════════════════════════════════════ */
 function escucharSuscripciones() {
   if (unsubscribeSusc) unsubscribeSusc();
 
-  const ref = collection(db, 'suscripciones');
-  unsubscribeSusc = onSnapshot(ref, (snap) => {
+  unsubscribeSusc = onSnapshot(collection(db, 'suscripciones'), (snap) => {
     suscripciones = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    renderThumbs();
 
-    const ahora = new Date();
-    suscripciones.forEach(s => {
-      const est = normalizarEstado(s.estado);
-      if (est === 'activa') {
-        // Usar fechaVencimiento si existe; si no, fechaLimiteValidacion como respaldo
-        const v = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
-        s._estadoEfectivo = (v && ahora >= v) ? 'expirada' : 'activa';
-      } else {
-        s._estadoEfectivo = est;
-      }
-    });
-
-    renderTodo();
+    // Si la tarjeta seleccionada fue actualizada, refrescar ficha
+    if (seleccionadaId) {
+      const s = suscripciones.find(x => x._id === seleccionadaId);
+      if (s) pintarFicha(s);
+    }
   }, (err) => {
-    console.error('onSnapshot suscripciones:', err);
+    console.error('onSnapshot:', err);
     toast('Error al escuchar suscripciones', 'error');
   });
 }
 
 /* ═══════════════════════════════════════════════════════════
-   RENDER PRINCIPAL
+   RENDER DE MINIATURAS POR CATEGORÍA
    ═══════════════════════════════════════════════════════════ */
-function renderTodo() {
-  renderDashboard();
-  renderSolicitudes(document.getElementById('searchSolicitudes')?.value || '');
-  renderActivas();
-  renderPorVencer();
-  renderExpiradas();
-  renderHistorial();
-  actualizarContadoresMenu();
-}
+function renderThumbs() {
+  const ahora = new Date();
 
-function actualizarContadoresMenu() {
-  const pend = suscripciones.filter(s => s._estadoEfectivo === 'pendiente').length;
-  const act  = suscripciones.filter(s => s._estadoEfectivo === 'activa').length;
-  const elP = document.getElementById('cntPendientes');
-  const elA = document.getElementById('cntActivas');
-  if (elP) elP.textContent = pend;
-  if (elA) elA.textContent = act;
-}
+  const aceptadas = [];
+  const espera    = [];
+  const rechazadas = [];
 
-/* ═══════════════════════════════════════════════════════════
-   DASHBOARD
-   ═══════════════════════════════════════════════════════════ */
-function renderDashboard() {
-  const pend = suscripciones.filter(s => s._estadoEfectivo === 'pendiente');
-  const act  = suscripciones.filter(s => s._estadoEfectivo === 'activa');
-  const porV = act.filter(s => {
-    const d = diasRestantes(aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion));
-    return d >= 0 && d <= 7;
-  });
-  const exp  = suscripciones.filter(s => s._estadoEfectivo === 'expirada');
-  const apro = suscripciones.filter(s => normalizarEstado(s.estado) === 'activa').length;
-  const rech = suscripciones.filter(s => normalizarEstado(s.estado) === 'rechazada').length;
-  const mens = act.filter(s => s.plan === 'mensual').length;
-  const anua = act.filter(s => s.plan === 'anual').length;
-
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  set('statPendientes', pend.length);
-  set('statActivas', act.length);
-  set('statPorVencer', porV.length);
-  set('statExpiradas', exp.length);
-  set('statAprobados', apro);
-  set('statRechazados', rech);
-  set('statMensuales', mens);
-  set('statAnuales', anua);
-
-  const recientes = [...suscripciones].sort((a, b) => {
-    const fa = aFecha(a.fechaSolicitud)?.getTime() || 0;
-    const fb = aFecha(b.fechaSolicitud)?.getTime() || 0;
-    return fb - fa;
-  }).slice(0, 10);
-
-  const tb = document.getElementById('dashUltimasSolicitudes');
-  if (!tb) return;
-  if (!recientes.length) {
-    tb.innerHTML = '<tr><td colspan="5" class="empty">No hay solicitudes registradas</td></tr>';
-    return;
-  }
-  tb.innerHTML = recientes.map(s => `
-    <tr>
-      <td>${escapeHtml(s.nombre || '—')}</td>
-      <td>${escapeHtml(s.correo || '—')}</td>
-      <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td><span class="badge ${s._estadoEfectivo}">${labelEstado(s.estado)}</span></td>
-      <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
-    </tr>`).join('');
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SOLICITUDES (formato tarjeta con comprobante + botones)
-   ═══════════════════════════════════════════════════════════ */
-function renderSolicitudes(filtro = '') {
-  const q = String(filtro || '').toLowerCase().trim();
-  let lista = [...suscripciones];
-
-  if (filtroSolicitudes !== 'todas') {
-    lista = lista.filter(s => normalizarEstado(s.estado) === filtroSolicitudes);
-  }
-
-  if (q) {
-    lista = lista.filter(s =>
-      (s.nombre || '').toLowerCase().includes(q) ||
-      (s.correo || '').toLowerCase().includes(q) ||
-      (s.uid || s._id || '').toLowerCase().includes(q)
-    );
-  }
-
-  lista.sort((a, b) => {
-    const fa = aFecha(a.fechaSolicitud)?.getTime() || 0;
-    const fb = aFecha(b.fechaSolicitud)?.getTime() || 0;
-    return fb - fa;
+  suscripciones.forEach(s => {
+    const est = normalizarEstado(s.estado);
+    if (est === 'activa') {
+      const v = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
+      if (v && ahora >= v) return; // vencida, no mostrar en aceptadas
+      aceptadas.push(s);
+    } else if (est === 'rechazada') {
+      rechazadas.push(s);
+    } else {
+      espera.push(s);
+    }
   });
 
-  const cont = document.getElementById('listaSolicitudes');
+  pintarThumbs('thumbsAceptadas',  aceptadas,  'No hay cuentas aceptadas');
+  pintarThumbs('thumbsEspera',     espera,     'No hay cuentas en espera');
+  pintarThumbs('thumbsRechazadas', rechazadas, 'No hay cuentas rechazadas');
+}
+
+function pintarThumbs(contId, lista, msgVacio) {
+  const cont = document.getElementById(contId);
   if (!cont) return;
 
-  actualizarContadoresFiltros();
-
   if (!lista.length) {
-    cont.innerHTML = '<div class="empty">No hay solicitudes para mostrar con este filtro</div>';
+    cont.innerHTML = `<div class="empty-thumbs">${msgVacio}</div>`;
     return;
   }
 
-  cont.innerHTML = lista.map(renderSolicitudCard).join('');
-
-  // Bind "Ver comprobante"
-  cont.querySelectorAll('[data-action="ver"]').forEach(btn => {
-    btn.onclick = () => window.verComprobante(btn.dataset.uid);
-  });
-
-  // Bind botones de estado
-  cont.querySelectorAll('[data-estado-btn]').forEach(btn => {
-    btn.onclick = () => cambiarEstado(btn.dataset.uid, btn.dataset.estadoBtn);
-  });
-}
-
-/* Construye el HTML de una tarjeta a partir de un doc real de Firebase */
-function renderSolicitudCard(s) {
-  const eNorm = normalizarEstado(s.estado);
-  const eUI   = ESTADOS_UI[eNorm];
-  const docId = s._id; // ID real del documento en Firestore
-
-  const fechaSol  = fmtFecha(aFecha(s.fechaSolicitud));
-  const fechaPago = s.fechaPago
-    ? (s.fechaPago?.toDate ? fmtFecha(s.fechaPago.toDate())
-       : fmtFecha(new Date(s.fechaPago)))
-    : '—';
-
-  const precio  = fmtDinero(s.monto ?? s.precio);
-  const planTxt = s.plan === 'anual'   ? '📆 Anual'
-                : s.plan === 'mensual' ? '📅 Mensual'
-                : (s.plan || '—');
-  const comp = s.comprobante || s.comprobanteURL;
-
-  return `
-    <article class="solicitud-card estado-${eNorm}">
-      <header class="sol-header">
-        <div class="sol-user">
-          <h3>${escapeHtml(s.nombre || 'Sin nombre')}</h3>
-          <span class="sol-correo">${escapeHtml(s.correo || '—')}</span>
-        </div>
-        <span class="badge ${eUI.badge}">${eUI.label}</span>
-      </header>
-
-      <div class="sol-info">
-        <div class="sol-item">
-          <label>UID</label>
-          <span class="mono">${escapeHtml(s.uid || docId || '—')}</span>
-        </div>
-        <div class="sol-item">
-          <label>Plan</label>
-          <span>${planTxt}</span>
-        </div>
-        <div class="sol-item">
-          <label>Precio</label>
-          <span class="precio">${precio}</span>
-        </div>
-        <div class="sol-item">
-          <label>Banco</label>
-          <span>${escapeHtml(s.banco || '—')}</span>
-        </div>
-        <div class="sol-item">
-          <label>Titular</label>
-          <span>${escapeHtml(s.nombreTitular || '—')}</span>
-        </div>
-        <div class="sol-item">
-          <label>Fecha de pago</label>
-          <span>${fechaPago}</span>
-        </div>
-        <div class="sol-item">
-          <label>Fecha de solicitud</label>
-          <span>${fechaSol}</span>
-        </div>
+  cont.innerHTML = lista.map(s => {
+    const inicial = (s.nombre || s.correo || '?').trim().charAt(0).toUpperCase();
+    const sel = s._id === seleccionadaId ? ' selected' : '';
+    const pic = s.foto || s.photoURL || s.fotoPerfil;
+    return `
+      <div class="thumb${sel}" data-id="${escapeHtml(s._id)}" title="${escapeHtml(s.nombre || s.correo || '')}">
+        ${pic
+          ? `<img src="${escapeHtml(pic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="initial" style="display:none">${escapeHtml(inicial)}</span>`
+          : `<span class="initial">${escapeHtml(inicial)}</span>`}
       </div>
+    `;
+  }).join('');
 
-      <div class="sol-footer">
-        <div class="sol-comp">
-          ${comp
-            ? `<button class="btn btn-ghost btn-sm" data-action="ver" data-uid="${escapeHtml(docId)}">
-                 👁️ Ver comprobante
-               </button>`
-            : `<span class="sin-comp">Sin comprobante registrado</span>`}
-        </div>
-
-        <div class="sol-estados">
-          ${['pendiente','activa','rechazada'].map(k => `
-            <button class="estado-btn ${k} ${eNorm === k ? 'active' : ''}"
-                    data-estado-btn="${k}"
-                    data-uid="${escapeHtml(docId)}">
-              ${ESTADOS_UI[k].label}
-            </button>
-          `).join('')}
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-/* Contadores en las pestañas de filtro */
-function actualizarContadoresFiltros() {
-  const counts = { pendiente: 0, activa: 0, rechazada: 0, todas: suscripciones.length };
-  suscripciones.forEach(s => { counts[normalizarEstado(s.estado)]++; });
-  document.querySelectorAll('.filter-count').forEach(el => {
-    const k = el.dataset.count;
-    if (k in counts) el.textContent = counts[k];
+  cont.querySelectorAll('.thumb').forEach(t => {
+    t.onclick = () => seleccionar(t.dataset.id);
   });
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ACTIVAS / POR VENCER / EXPIRADAS
+   SELECCIÓN Y FICHA
    ═══════════════════════════════════════════════════════════ */
-function renderActivas(filtro = '') {
-  const q = filtro.toLowerCase().trim();
-  let lista = suscripciones.filter(s => s._estadoEfectivo === 'activa');
-  if (q) {
-    lista = lista.filter(s =>
-      (s.nombre || '').toLowerCase().includes(q) ||
-      (s.correo || '').toLowerCase().includes(q) ||
-      (s.uid || '').toLowerCase().includes(q)
-    );
-  }
-  const tb = document.getElementById('tablaActivas');
-  if (!tb) return;
-  if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="7" class="empty">No hay suscripciones activas</td></tr>';
+function seleccionar(docId) {
+  seleccionadaId = docId;
+  renderThumbs();
+  const s = suscripciones.find(x => x._id === docId);
+  if (!s) {
+    document.getElementById('ficha').style.display = 'none';
+    document.getElementById('fichaVacia').style.display = 'flex';
     return;
   }
-  tb.innerHTML = lista.map(s => {
-    const venc = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
-    const dias = diasRestantes(venc);
-    const colorDias = dias <= 3 ? 'red' : dias <= 7 ? 'yellow' : 'green';
-    return `
-      <tr>
-        <td>${escapeHtml(s.nombre || '—')}</td>
-        <td>${escapeHtml(s.correo || '—')}</td>
-        <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-        <td>${fmtFecha(aFecha(s.fechaInicio) || aFecha(s.fechaPago))}</td>
-        <td>${fmtFecha(venc)}</td>
-        <td><span class="stat-value ${colorDias}" style="font-size:14px;margin:0">${dias} días</span></td>
-        <td><span class="badge activa">🟢 Pago aprobado</span></td>
-      </tr>`;
-  }).join('');
+  pintarFicha(s);
 }
 
-function renderPorVencer() {
-  const lista = suscripciones.filter(s => s._estadoEfectivo === 'activa')
-    .filter(s => {
-      const d = diasRestantes(aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion));
-      return d >= 0 && d <= 7;
-    })
-    .sort((a, b) => {
-      const da = diasRestantes(aFecha(a.fechaVencimiento) || aFecha(a.fechaLimiteValidacion));
-      const db = diasRestantes(aFecha(b.fechaVencimiento) || aFecha(b.fechaLimiteValidacion));
-      return da - db;
-    });
+function pintarFicha(s) {
+  document.getElementById('fichaVacia').style.display = 'none';
+  document.getElementById('ficha').style.display = 'flex';
 
-  const tb = document.getElementById('tablaPorVencer');
-  if (!tb) return;
-  if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="6" class="empty">No hay suscripciones próximas a vencer</td></tr>';
-    return;
-  }
-  tb.innerHTML = lista.map(s => {
-    const venc = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
-    const d = diasRestantes(venc);
-    return `
-      <tr>
-        <td>${escapeHtml(s.nombre || '—')}</td>
-        <td>${escapeHtml(s.correo || '—')}</td>
-        <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-        <td>${fmtFecha(venc)}</td>
-        <td><span class="stat-value ${d <= 3 ? 'red' : 'yellow'}" style="font-size:14px;margin:0">${d} días</span></td>
-        <td><span class="badge activa">🟢 Pago aprobado</span></td>
-      </tr>`;
-  }).join('');
-}
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val ?? '';
+  };
 
-function renderExpiradas() {
-  const lista = suscripciones.filter(s => s._estadoEfectivo === 'expirada');
-  const tb = document.getElementById('tablaExpiradas');
-  if (!tb) return;
-  if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="6" class="empty">No hay suscripciones expiradas</td></tr>';
-    return;
-  }
-  tb.innerHTML = lista.map(s => `
-    <tr>
-      <td>${escapeHtml(s.nombre || '—')}</td>
-      <td>${escapeHtml(s.correo || '—')}</td>
-      <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtFecha(aFecha(s.fechaInicio) || aFecha(s.fechaPago))}</td>
-      <td>${fmtFecha(aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion))}</td>
-      <td><span class="badge expirada">⚫ Expirada</span></td>
-    </tr>`).join('');
+  const fechaPago        = s.fechaPago?.toDate ? s.fechaPago.toDate()
+                          : (s.fechaPago ? new Date(s.fechaPago) : null);
+  const fechaSolicitud   = aFecha(s.fechaSolicitud);
+  const fechaActualiz    = aFecha(s.fechaUltimaActualizacion);
+  const fechaInicio      = aFecha(s.fechaInicio) || fechaPago;
+  const fechaVencimiento = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
+
+  set('fIdSolicitud',        s.uid || s._id || '—');
+  set('fPlan',               s.plan === 'anual' ? 'Anual' : s.plan === 'mensual' ? 'Mensual' : (s.plan || '—'));
+  set('fPrecio',             fmtDinero(s.monto ?? s.precio));
+  set('fTitular',            s.nombreTitular || '—');
+  set('fReferencia',         s.referencia || s.folio || '—');
+  set('fBanco',              s.banco || '—');
+  set('fFechaPago',          fmtFechaCorta(fechaPago));
+  set('fFechaSolicitud',     fmtFecha(fechaSolicitud));
+  set('fFechaActualizacion', fmtFecha(fechaActualiz) || '—');
+  set('fFechaInicio',        fmtFechaCorta(fechaInicio));
+  set('fFechaVencimiento',   fmtFechaCorta(fechaVencimiento));
+
+  // Botón tickque
+  const btnTick = document.getElementById('btnVerTickque');
+  const url = s.comprobante || s.comprobanteURL;
+  btnTick.disabled = !url;
+  btnTick.textContent = url ? 'Ver Tickque' : 'Sin comprobante';
+  btnTick.onclick = () => url ? window.verComprobante(s._id) : null;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   HISTORIAL
-   ═══════════════════════════════════════════════════════════ */
-function renderHistorial(filtro = '') {
-  const q = filtro.toLowerCase().trim();
-  let lista = [...suscripciones];
-  if (q) {
-    lista = lista.filter(s =>
-      (s.nombre || '').toLowerCase().includes(q) ||
-      (s.correo || '').toLowerCase().includes(q) ||
-      (s.uid || '').toLowerCase().includes(q)
-    );
-  }
-  const tb = document.getElementById('tablaHistorial');
-  if (!tb) return;
-  if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="7" class="empty">No hay pagos en el historial</td></tr>';
-    return;
-  }
-  tb.innerHTML = lista.map(s => {
-    const eNorm = normalizarEstado(s.estado);
-    return `
-    <tr>
-      <td>${escapeHtml(s.nombre || '—')}</td>
-      <td>${escapeHtml(s.correo || '—')}</td>
-      <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtDinero(s.monto ?? s.precio)}</td>
-      <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
-      <td><span class="badge ${ESTADOS_UI[eNorm].badge}">${ESTADOS_UI[eNorm].label}</span></td>
-      <td>${s.comprobante
-        ? `<button class="btn btn-ghost btn-xs" onclick="verComprobante('${escapeHtml(s._id)}')">👁️ Ver</button>`
-        : '—'}</td>
-    </tr>`;
-  }).join('');
-}
-
-/* ═══════════════════════════════════════════════════════════
-   VER COMPROBANTE (Dropbox)
+   VER COMPROBANTE
    ═══════════════════════════════════════════════════════════ */
 window.verComprobante = (docId) => {
-  const s = suscripciones.find(x => x._id === docId || x.uid === docId);
+  const s = suscripciones.find(x => x._id === docId);
   if (!s) return toast('No se encontró la suscripción', 'error');
 
   const urlOriginal = s.comprobante || s.comprobanteURL;
-  if (!urlOriginal) {
-    toast('Esta suscripción no tiene comprobante registrado', 'warn');
-    return;
-  }
+  if (!urlOriginal) return toast('Sin comprobante registrado', 'warn');
 
   const cont = document.getElementById('imgViewer');
-  if (!cont) return;
   cont.innerHTML = '<div class="loading-full">Cargando comprobante...</div>';
   openModal('modalImg');
 
   const urlDirecta = dropboxDirecto(urlOriginal);
-
   const img = new Image();
-  img.onload = () => {
-    cont.innerHTML = '';
-    cont.appendChild(img);
-  };
+  img.onload = () => { cont.innerHTML = ''; cont.appendChild(img); };
   img.onerror = () => {
     cont.innerHTML = `
       <div style="padding:24px;text-align:center">
-        <p style="color:var(--danger);font-weight:700;margin-bottom:12px">
+        <p style="color:#ff8a8a;font-weight:700;margin-bottom:12px">
           ⚠️ No se puede visualizar el comprobante.
         </p>
-        <p style="color:var(--text2);font-size:14px;margin-bottom:16px">
+        <p style="color:#aaa;font-size:14px;margin-bottom:16px">
           Verifica que el enlace de Dropbox sea público o permita su visualización.
         </p>
         <a href="${escapeHtml(urlOriginal)}" target="_blank" rel="noopener"
-           class="btn btn-primary btn-sm">🔗 Abrir enlace original</a>
-        <p style="color:var(--text2);font-size:11px;margin-top:16px;word-break:break-all">
+           style="display:inline-block;background:#e63946;color:#fff;padding:10px 20px;
+                  border-radius:999px;text-decoration:none;font-weight:600">
+          🔗 Abrir enlace original
+        </a>
+        <p style="color:#666;font-size:11px;margin-top:16px;word-break:break-all">
           ${escapeHtml(urlOriginal)}
         </p>
       </div>`;
   };
   img.src = urlDirecta;
   img.style.cssText = 'width:100%;border-radius:10px;display:block;background:#000';
-  img.alt = 'Comprobante de pago';
+  img.alt = 'Comprobante';
 };
 
 /* ═══════════════════════════════════════════════════════════
-   CAMBIAR ESTADO (ÚNICO CAMPO EDITABLE)
+   ACCIONES: ESPERA / ACEPTAR / RECHAZAR
    ═══════════════════════════════════════════════════════════ */
-async function cambiarEstado(docId, nuevoEstado) {
-  const s = suscripciones.find(x => x._id === docId || x.uid === docId);
+async function cambiarEstadoSeleccionado(nuevoEstado, etiqueta) {
+  if (!seleccionadaId) return toast('Selecciona una cuenta primero', 'warn');
+
+  const s = suscripciones.find(x => x._id === seleccionadaId);
   if (!s) return toast('No se encontró la suscripción', 'error');
 
   const estadoAnterior = normalizarEstado(s.estado);
   if (estadoAnterior === nuevoEstado) {
-    return toast('El estado ya es ese', 'warn');
+    return toast(`Ya está en estado "${etiqueta}"`, 'warn');
   }
 
-  const eAnt = ESTADOS_UI[estadoAnterior];
-  const eNew = ESTADOS_UI[nuevoEstado];
-
   const ok = confirm(
-    `¿Cambiar el estado de "${s.nombre || s.correo}"?\n\n` +
-    `De:  ${eAnt.label}\n` +
-    `A:   ${eNew.label}\n\n` +
-    `⚠️ Solo se modificará el campo "estado".`
+    `¿Marcar "${s.nombre || s.correo}" como "${etiqueta}"?\n\n` +
+    `Se modificará únicamente el campo "estado".`
   );
   if (!ok) return;
 
-  // Deshabilitar todos los botones de esa tarjeta mientras se guarda
-  const card = document.querySelector(`.solicitud-card .estado-btn[data-uid="${docId}"]`)
-                ?.closest('.solicitud-card');
-  card?.querySelectorAll('.estado-btn').forEach(b => b.disabled = true);
+  const btns = document.querySelectorAll('.btn-accion');
+  btns.forEach(b => b.disabled = true);
 
   try {
-    // ✅ Se actualiza SOLO el campo estado (+ auditoría)
     await updateDoc(doc(db, 'suscripciones', s._id), {
       estado: nuevoEstado,
       fechaUltimaActualizacion: serverTimestamp(),
@@ -633,7 +358,6 @@ async function cambiarEstado(docId, nuevoEstado) {
       fechaResolucion: serverTimestamp()
     });
 
-    // Registro en actividad_admin
     try {
       await addDoc(collection(db, 'actividad_admin'), {
         adminUID: adminActual.uid,
@@ -643,54 +367,60 @@ async function cambiarEstado(docId, nuevoEstado) {
         usuarioAfectadoUID: s.uid || s._id || '',
         usuarioAfectadoNombre: s.nombre || '',
         usuarioAfectadoCorreo: s.correo || '',
-        detalles: {
-          estadoAnterior,
-          estadoNuevo: nuevoEstado,
-          etiqueta: eNew.label,
-          docId: s._id
-        },
+        detalles: { estadoAnterior, estadoNuevo: nuevoEstado, docId: s._id },
         fecha: serverTimestamp()
       });
-    } catch (e) { console.warn('No se pudo registrar actividad:', e); }
+    } catch (e) { console.warn('Actividad:', e); }
 
-    toast(`✅ Estado actualizado: ${eNew.label}`);
-    // onSnapshot refresca la lista automáticamente
+    toast(`✅ Estado actualizado: ${etiqueta}`);
 
   } catch (e) {
-    console.error('Error al cambiar estado:', e);
+    console.error(e);
     toast('Error: ' + e.message, 'error');
-    card?.querySelectorAll('.estado-btn').forEach(b => b.disabled = false);
+  } finally {
+    btns.forEach(b => b.disabled = false);
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   BUSCADORES
-   ═══════════════════════════════════════════════════════════ */
-document.getElementById('searchSolicitudes')?.addEventListener('input', e => renderSolicitudes(e.target.value));
-document.getElementById('searchActivas')?.addEventListener('input', e => renderActivas(e.target.value));
-document.getElementById('searchHistorial')?.addEventListener('input', e => renderHistorial(e.target.value));
+document.getElementById('btnEspera').onclick   = () => cambiarEstadoSeleccionado('pendiente', '🟡 Espera');
+document.getElementById('btnAceptar').onclick  = () => cambiarEstadoSeleccionado('activa',    '🟢 Aceptar');
+document.getElementById('btnRechazar').onclick = () => cambiarEstadoSeleccionado('rechazada', '🔴 Rechazar');
 
 /* ═══════════════════════════════════════════════════════════
-   FILTROS DE SOLICITUDES
+   BUSCADOR
    ═══════════════════════════════════════════════════════════ */
-document.querySelectorAll('.filter-tab').forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    filtroSolicitudes = tab.dataset.filter;
-    renderSolicitudes(document.getElementById('searchSolicitudes')?.value || '');
-  };
+function buscar() {
+  const q = (document.getElementById('buscador').value || '').toLowerCase().trim();
+  if (!q) {
+    seleccionadaId = null;
+    document.getElementById('ficha').style.display = 'none';
+    document.getElementById('fichaVacia').style.display = 'flex';
+    renderThumbs();
+    return;
+  }
+
+  const match = suscripciones.find(s =>
+    (s.nombre || '').toLowerCase().includes(q) ||
+    (s.correo || '').toLowerCase().includes(q) ||
+    (s.uid || s._id || '').toLowerCase().includes(q) ||
+    (s.nombreTitular || '').toLowerCase().includes(q)
+  );
+
+  if (!match) {
+    toast('No se encontró ninguna cuenta con ese criterio', 'warn');
+    return;
+  }
+
+  seleccionar(match._id);
+}
+
+document.getElementById('btnBuscar').onclick = buscar;
+document.getElementById('buscador').addEventListener('keydown', e => {
+  if (e.key === 'Enter') buscar();
 });
 
-/* ═══════════════════════════════════════════════════════════
-   REFRESH
-   ═══════════════════════════════════════════════════════════ */
-document.getElementById('refreshDash')?.addEventListener('click', () => {
-  toast('✅ Datos actualizados en tiempo real');
-});
-document.getElementById('refreshSolicitudes')?.addEventListener('click', () => {
-  toast('✅ Datos actualizados en tiempo real');
-});
-document.getElementById('refreshActivas')?.addEventListener('click', () => {
-  toast('✅ Datos actualizados en tiempo real');
+/* Búsqueda en vivo */
+document.getElementById('buscador').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  if (q.length >= 2) buscar();
 });
