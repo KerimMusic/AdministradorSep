@@ -27,14 +27,6 @@ setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 /* ═══════════════════════════════════════════════════════════
    🔒 SEGURIDAD — Lista blanca de administradores
-   ═══════════════════════════════════════════════════════════
-   IMPORTANTE: agrega aquí los UID o correos de los admins
-   autorizados. Si dejas los arrays vacíos, CUALQUIER cuenta
-   de Google podrá entrar (útil para pruebas, pero inseguro
-   en producción).
-
-   Además, la protección REAL debe estar en las Reglas de
-   Firestore (ver instrucciones al final del archivo).
    ═══════════════════════════════════════════════════════════ */
 const ADMINS_UID = [
   // 'pega_aqui_el_uid_del_admin_1',
@@ -145,6 +137,7 @@ document.querySelectorAll('.modal').forEach(m => {
    ═══════════════════════════════════════════════════════════ */
 const loginBtn   = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
+const logoutBtn  = document.getElementById('btnLogout');
 
 getRedirectResult(auth).catch(err => {
   if (err?.code && err.code !== 'auth/no-auth-event') console.warn('Redirect:', err);
@@ -173,8 +166,12 @@ onAuthStateChanged(auth, async user => {
   if (!user) {
     adminActual = null;
     if (unsubscribeSusc) { unsubscribeSusc(); unsubscribeSusc = null; }
+    suscripciones = [];
+    seleccionadaId = null;
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('appScreen').classList.remove('active');
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = 'Iniciar sesión con Google';
     return;
   }
 
@@ -194,6 +191,30 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('userPic').src = user.photoURL || '';
 
   escucharSuscripciones();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   CERRAR SESIÓN
+   ═══════════════════════════════════════════════════════════ */
+logoutBtn?.addEventListener('click', async () => {
+  const ok = confirm('¿Cerrar sesión del panel administrativo?');
+  if (!ok) return;
+
+  try {
+    logoutBtn.disabled = true;
+
+    if (unsubscribeSusc) { unsubscribeSusc(); unsubscribeSusc = null; }
+    seleccionadaId = null;
+    suscripciones = [];
+
+    await signOut(auth);
+    toast('Sesión cerrada correctamente');
+  } catch (e) {
+    console.error('signOut:', e);
+    toast('Error al cerrar sesión: ' + e.message, 'error');
+  } finally {
+    logoutBtn.disabled = false;
+  }
 });
 
 /* ═══════════════════════════════════════════════════════════
@@ -320,7 +341,7 @@ function pintarFicha(s) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   VER COMPROBANTE (usa el `comprobante` del registro seleccionado)
+   VER COMPROBANTE
    ═══════════════════════════════════════════════════════════ */
 window.verComprobante = (docId) => {
   const s = suscripciones.find(x => x._id === docId);
@@ -384,7 +405,6 @@ async function cambiarEstadoSeleccionado(nuevoEstado, etiqueta) {
   btns.forEach(b => b.disabled = true);
 
   try {
-    // ⚠️ ÚNICAMENTE se actualiza el campo `estado`
     await updateDoc(doc(db, 'suscripciones', s._id), {
       estado: nuevoEstado
     });
