@@ -83,21 +83,35 @@
 
       <section class="view" id="view-solicitudes">
         <div class="view-header">
-          <div><h2>Solicitudes de suscripción</h2><p>Pagos pendientes de revisión</p></div>
+          <div>
+            <h2>Solicitudes de suscripción</h2>
+            <p>Revisa el comprobante y aprueba o rechaza el pago</p>
+          </div>
           <div class="view-actions">
             <button class="btn btn-ghost btn-sm" id="refreshSolicitudes">🔄 Actualizar</button>
           </div>
         </div>
-        <div class="search-box"><input id="searchSolicitudes" placeholder="Buscar por nombre, correo o UID..."></div>
-        <div class="table-wrap"><div class="table-scroll">
-          <table>
-            <thead><tr>
-              <th>Usuario</th><th>Correo</th><th>UID</th>
-              <th>Plan</th><th>Precio</th><th>Fecha</th><th>Estado</th><th>Comprobante</th>
-            </tr></thead>
-            <tbody id="tablaSolicitudes"></tbody>
-          </table>
-        </div></div>
+
+        <div class="filter-tabs">
+          <button class="filter-tab active" data-filter="pendiente">
+            🟡 Pendientes <span class="filter-count" data-count="pendiente">0</span>
+          </button>
+          <button class="filter-tab" data-filter="activa">
+            🟢 Aprobadas <span class="filter-count" data-count="activa">0</span>
+          </button>
+          <button class="filter-tab" data-filter="rechazada">
+            🔴 Rechazadas <span class="filter-count" data-count="rechazada">0</span>
+          </button>
+          <button class="filter-tab" data-filter="todas">
+            📋 Todas <span class="filter-count" data-count="todas">0</span>
+          </button>
+        </div>
+
+        <div class="search-box">
+          <input id="searchSolicitudes" placeholder="Buscar por nombre, correo o UID...">
+        </div>
+
+        <div id="listaSolicitudes" class="solicitudes-grid"></div>
       </section>
 
       <section class="view" id="view-activas">
@@ -264,7 +278,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-  
+
 <script type="module" src="script.js"></script>
 </body>
 </html>
