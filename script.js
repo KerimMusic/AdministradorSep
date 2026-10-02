@@ -5,8 +5,7 @@ import {
   setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, updateDoc,
-  addDoc, serverTimestamp, onSnapshot
+  getFirestore, collection, doc, updateDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -27,6 +26,38 @@ const provider = new GoogleAuthProvider();
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 /* ═══════════════════════════════════════════════════════════
+   🔒 SEGURIDAD — Lista blanca de administradores
+   ═══════════════════════════════════════════════════════════
+   IMPORTANTE: agrega aquí los UID o correos de los admins
+   autorizados. Si dejas los arrays vacíos, CUALQUIER cuenta
+   de Google podrá entrar (útil para pruebas, pero inseguro
+   en producción).
+
+   Además, la protección REAL debe estar en las Reglas de
+   Firestore (ver instrucciones al final del archivo).
+   ═══════════════════════════════════════════════════════════ */
+const ADMINS_UID = [
+  // 'pega_aqui_el_uid_del_admin_1',
+  // 'pega_aqui_el_uid_del_admin_2',
+];
+
+const ADMINS_EMAIL = [
+  // 'admin1@tudominio.com',
+  // 'admin2@tudominio.com',
+];
+
+/* Modo "libre" = true → cualquier Google entra (para pruebas).
+   Ponlo en false cuando ya tengas los UID/emails arriba. */
+const ACCESO_LIBRE = true;
+
+function esAdminAutorizado(user) {
+  if (!user) return false;
+  if (ACCESO_LIBRE) return true;
+  return ADMINS_UID.includes(user.uid) ||
+         ADMINS_EMAIL.includes((user.email || '').toLowerCase());
+}
+
+/* ═══════════════════════════════════════════════════════════
    ESTADO GLOBAL
    ═══════════════════════════════════════════════════════════ */
 let adminActual = null;
@@ -37,7 +68,12 @@ let seleccionadaId = null;
 /* ═══════════════════════════════════════════════════════════
    HELPERS
    ═══════════════════════════════════════════════════════════ */
-const aFecha = t => t?.toDate ? t.toDate() : (t ? new Date(t) : null);
+const aFecha = t => {
+  if (!t) return null;
+  if (typeof t.toDate === 'function') return t.toDate();
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 const fmtFecha = f => {
   if (!f) return '—';
@@ -57,20 +93,32 @@ const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[c]));
 
+/* Normaliza variantes del campo `estado` a 3 valores canónicos */
 function normalizarEstado(estado) {
   const e = String(estado || 'pendiente').toLowerCase().trim();
-  if (['activa','activo','aprobada','aprobado','pago aprobado'].includes(e)) return 'activa';
-  if (['rechazada','rechazado','pago rechazado'].includes(e)) return 'rechazada';
+  if (['aprobado','aprobada','activa','activo','aceptado','aceptada','pago aprobado'].includes(e)) return 'aprobado';
+  if (['rechazado','rechazada','pago rechazado'].includes(e)) return 'rechazado';
   return 'pendiente';
 }
 
+function etiquetaEstado(estado) {
+  const n = normalizarEstado(estado);
+  if (n === 'aprobado')  return '🟢 Pago aprobado';
+  if (n === 'rechazado') return '🔴 Pago rechazado';
+  return '🟡 Pago en revisión';
+}
+
+/* Convierte enlaces de Dropbox a enlaces de descarga directa */
 function dropboxDirecto(url) {
   if (!url) return '';
-  return url.trim()
-    .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
-    .replace('?dl=0', '').replace('?dl=1', '')
-    .replace('&dl=0', '').replace('&dl=1', '')
-    .replace('?raw=1', '');
+  let u = url.trim();
+  if (u.includes('dropbox.com')) {
+    u = u.replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+         .replace('?dl=0', '').replace('?dl=1', '')
+         .replace('&dl=0', '').replace('&dl=1', '')
+         .replace('?raw=1', '').replace('&raw=1', '');
+  }
+  return u;
 }
 
 function toast(msg, tipo = 'ok') {
@@ -93,7 +141,7 @@ document.querySelectorAll('.modal').forEach(m => {
 });
 
 /* ═══════════════════════════════════════════════════════════
-   LOGIN (ACCESO LIBRE - sin verificación de admin)
+   LOGIN
    ═══════════════════════════════════════════════════════════ */
 const loginBtn   = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
@@ -130,7 +178,16 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // ✅ ACCESO LIBRE: cualquier cuenta de Google entra
+  // 🔒 Verificación de admin autorizado
+  if (!esAdminAutorizado(user)) {
+    await signOut(auth);
+    loginError.textContent = '⛔ Esta cuenta no tiene permisos de administrador.';
+    loginError.classList.add('show');
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = 'Iniciar sesión con Google';
+    return;
+  }
+
   adminActual = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').classList.add('active');
@@ -140,7 +197,7 @@ onAuthStateChanged(auth, async user => {
 });
 
 /* ═══════════════════════════════════════════════════════════
-   ESCUCHAR FIREBASE EN TIEMPO REAL
+   FIRESTORE — TIEMPO REAL
    ═══════════════════════════════════════════════════════════ */
 function escucharSuscripciones() {
   if (unsubscribeSusc) unsubscribeSusc();
@@ -149,38 +206,30 @@ function escucharSuscripciones() {
     suscripciones = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
     renderThumbs();
 
-    // Si la tarjeta seleccionada fue actualizada, refrescar ficha
     if (seleccionadaId) {
       const s = suscripciones.find(x => x._id === seleccionadaId);
       if (s) pintarFicha(s);
+      else seleccionadaId = null;
     }
   }, (err) => {
     console.error('onSnapshot:', err);
-    toast('Error al escuchar suscripciones', 'error');
+    toast('Error al escuchar suscripciones: ' + err.message, 'error');
   });
 }
 
 /* ═══════════════════════════════════════════════════════════
-   RENDER DE MINIATURAS POR CATEGORÍA
+   RENDER DE MINIATURAS
    ═══════════════════════════════════════════════════════════ */
 function renderThumbs() {
-  const ahora = new Date();
-
-  const aceptadas = [];
-  const espera    = [];
+  const aceptadas  = [];
+  const espera     = [];
   const rechazadas = [];
 
   suscripciones.forEach(s => {
     const est = normalizarEstado(s.estado);
-    if (est === 'activa') {
-      const v = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
-      if (v && ahora >= v) return; // vencida, no mostrar en aceptadas
-      aceptadas.push(s);
-    } else if (est === 'rechazada') {
-      rechazadas.push(s);
-    } else {
-      espera.push(s);
-    }
+    if (est === 'aprobado')       aceptadas.push(s);
+    else if (est === 'rechazado') rechazadas.push(s);
+    else                          espera.push(s);
   });
 
   pintarThumbs('thumbsAceptadas',  aceptadas,  'No hay cuentas aceptadas');
@@ -202,7 +251,8 @@ function pintarThumbs(contId, lista, msgVacio) {
     const sel = s._id === seleccionadaId ? ' selected' : '';
     const pic = s.foto || s.photoURL || s.fotoPerfil;
     return `
-      <div class="thumb${sel}" data-id="${escapeHtml(s._id)}" title="${escapeHtml(s.nombre || s.correo || '')}">
+      <div class="thumb${sel}" data-id="${escapeHtml(s._id)}"
+           title="${escapeHtml(s.nombre || s.correo || '')}">
         ${pic
           ? `<img src="${escapeHtml(pic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="initial" style="display:none">${escapeHtml(inicial)}</span>`
           : `<span class="initial">${escapeHtml(inicial)}</span>`}
@@ -236,38 +286,41 @@ function pintarFicha(s) {
 
   const set = (id, val) => {
     const el = document.getElementById(id);
-    if (el) el.value = val ?? '';
+    if (el) el.value = (val === undefined || val === null || val === '') ? '—' : val;
   };
 
-  const fechaPago        = s.fechaPago?.toDate ? s.fechaPago.toDate()
-                          : (s.fechaPago ? new Date(s.fechaPago) : null);
-  const fechaSolicitud   = aFecha(s.fechaSolicitud);
-  const fechaActualiz    = aFecha(s.fechaUltimaActualizacion);
-  const fechaInicio      = aFecha(s.fechaInicio) || fechaPago;
-  const fechaVencimiento = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
+  const fechaPago      = aFecha(s.fechaPago);
+  const fechaSolicitud = aFecha(s.fechaSolicitud);
+  const fechaActualiz  = aFecha(s.fechaUltimaActualizacion);
+  const fechaLimite    = aFecha(s.fechaLimiteValidacion);
 
-  set('fIdSolicitud',        s.uid || s._id || '—');
-  set('fPlan',               s.plan === 'anual' ? 'Anual' : s.plan === 'mensual' ? 'Mensual' : (s.plan || '—'));
-  set('fPrecio',             fmtDinero(s.monto ?? s.precio));
-  set('fTitular',            s.nombreTitular || '—');
-  set('fReferencia',         s.referencia || s.folio || '—');
-  set('fBanco',              s.banco || '—');
-  set('fFechaPago',          fmtFechaCorta(fechaPago));
-  set('fFechaSolicitud',     fmtFecha(fechaSolicitud));
-  set('fFechaActualizacion', fmtFecha(fechaActualiz) || '—');
-  set('fFechaInicio',        fmtFechaCorta(fechaInicio));
-  set('fFechaVencimiento',   fmtFechaCorta(fechaVencimiento));
+  set('fNombre',        s.nombre);
+  set('fCorreo',        s.correo);
+  set('fUid',           s.uid || s._id);
+  set('fSolicitudId',   s.solicitudId || s._id);
+  set('fEstado',        etiquetaEstado(s.estado));
+  set('fPlan',          s.plan === 'anual' ? 'Anual'
+                      : s.plan === 'mensual' ? 'Mensual'
+                      : (s.plan || '—'));
+  set('fPrecio',        s.precio != null ? fmtDinero(s.precio) : '—');
+  set('fMonto',         s.monto  != null ? fmtDinero(s.monto)  : '—');
+  set('fTitular',       s.nombreTitular);
+  set('fBanco',         s.banco);
+  set('fReferencia',    s.referencia || s.folio);
+  set('fFechaPago',     fmtFechaCorta(fechaPago));
+  set('fFechaSolicitud',fmtFecha(fechaSolicitud));
+  set('fFechaActualizacion', fmtFecha(fechaActualiz));
+  set('fFechaLimite',   fmtFechaCorta(fechaLimite));
 
-  // Botón tickque
   const btnTick = document.getElementById('btnVerTickque');
   const url = s.comprobante || s.comprobanteURL;
   btnTick.disabled = !url;
-  btnTick.textContent = url ? 'Ver Tickque' : 'Sin comprobante';
+  btnTick.textContent = url ? '👁️ Ver ticket' : 'Sin comprobante';
   btnTick.onclick = () => url ? window.verComprobante(s._id) : null;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   VER COMPROBANTE
+   VER COMPROBANTE (usa el `comprobante` del registro seleccionado)
    ═══════════════════════════════════════════════════════════ */
 window.verComprobante = (docId) => {
   const s = suscripciones.find(x => x._id === docId);
@@ -290,7 +343,7 @@ window.verComprobante = (docId) => {
           ⚠️ No se puede visualizar el comprobante.
         </p>
         <p style="color:#aaa;font-size:14px;margin-bottom:16px">
-          Verifica que el enlace de Dropbox sea público o permita su visualización.
+          Verifica que el enlace de Dropbox sea público.
         </p>
         <a href="${escapeHtml(urlOriginal)}" target="_blank" rel="noopener"
            style="display:inline-block;background:#e63946;color:#fff;padding:10px 20px;
@@ -308,7 +361,7 @@ window.verComprobante = (docId) => {
 };
 
 /* ═══════════════════════════════════════════════════════════
-   ACCIONES: ESPERA / ACEPTAR / RECHAZAR
+   ACCIONES: SOLO MODIFICA EL CAMPO `estado`
    ═══════════════════════════════════════════════════════════ */
 async function cambiarEstadoSeleccionado(nuevoEstado, etiqueta) {
   if (!seleccionadaId) return toast('Selecciona una cuenta primero', 'warn');
@@ -323,7 +376,7 @@ async function cambiarEstadoSeleccionado(nuevoEstado, etiqueta) {
 
   const ok = confirm(
     `¿Marcar "${s.nombre || s.correo}" como "${etiqueta}"?\n\n` +
-    `Se modificará únicamente el campo "estado".`
+    `Solo se modificará el campo "estado".`
   );
   if (!ok) return;
 
@@ -331,26 +384,10 @@ async function cambiarEstadoSeleccionado(nuevoEstado, etiqueta) {
   btns.forEach(b => b.disabled = true);
 
   try {
+    // ⚠️ ÚNICAMENTE se actualiza el campo `estado`
     await updateDoc(doc(db, 'suscripciones', s._id), {
-      estado: nuevoEstado,
-      fechaUltimaActualizacion: serverTimestamp(),
-      resueltoPor: adminActual.email,
-      fechaResolucion: serverTimestamp()
+      estado: nuevoEstado
     });
-
-    try {
-      await addDoc(collection(db, 'actividad_admin'), {
-        adminUID: adminActual.uid,
-        adminEmail: adminActual.email,
-        adminNombre: adminActual.displayName || '',
-        accion: 'Cambió estado de suscripción',
-        usuarioAfectadoUID: s.uid || s._id || '',
-        usuarioAfectadoNombre: s.nombre || '',
-        usuarioAfectadoCorreo: s.correo || '',
-        detalles: { estadoAnterior, estadoNuevo: nuevoEstado, docId: s._id },
-        fecha: serverTimestamp()
-      });
-    } catch (e) { console.warn('Actividad:', e); }
 
     toast(`✅ Estado actualizado: ${etiqueta}`);
 
@@ -362,9 +399,9 @@ async function cambiarEstadoSeleccionado(nuevoEstado, etiqueta) {
   }
 }
 
-document.getElementById('btnEspera').onclick   = () => cambiarEstadoSeleccionado('pendiente', '🟡 Espera');
-document.getElementById('btnAceptar').onclick  = () => cambiarEstadoSeleccionado('activa',    '🟢 Aceptar');
-document.getElementById('btnRechazar').onclick = () => cambiarEstadoSeleccionado('rechazada', '🔴 Rechazar');
+document.getElementById('btnEspera').onclick   = () => cambiarEstadoSeleccionado('pendiente', '🟡 Pago en revisión');
+document.getElementById('btnAceptar').onclick  = () => cambiarEstadoSeleccionado('aprobado',  '🟢 Pago aprobado');
+document.getElementById('btnRechazar').onclick = () => cambiarEstadoSeleccionado('rechazado', '🔴 Pago rechazado');
 
 /* ═══════════════════════════════════════════════════════════
    BUSCADOR
@@ -380,10 +417,13 @@ function buscar() {
   }
 
   const match = suscripciones.find(s =>
-    (s.nombre || '').toLowerCase().includes(q) ||
-    (s.correo || '').toLowerCase().includes(q) ||
-    (s.uid || s._id || '').toLowerCase().includes(q) ||
-    (s.nombreTitular || '').toLowerCase().includes(q)
+    (s.nombre         || '').toLowerCase().includes(q) ||
+    (s.correo         || '').toLowerCase().includes(q) ||
+    (s.uid            || '').toLowerCase().includes(q) ||
+    (s._id            || '').toLowerCase().includes(q) ||
+    (s.solicitudId    || '').toLowerCase().includes(q) ||
+    (s.nombreTitular  || '').toLowerCase().includes(q) ||
+    (s.referencia     || '').toLowerCase().includes(q)
   );
 
   if (!match) {
@@ -398,8 +438,6 @@ document.getElementById('btnBuscar').onclick = buscar;
 document.getElementById('buscador').addEventListener('keydown', e => {
   if (e.key === 'Enter') buscar();
 });
-
-/* Búsqueda en vivo */
 document.getElementById('buscador').addEventListener('input', e => {
   const q = e.target.value.toLowerCase().trim();
   if (q.length >= 2) buscar();
