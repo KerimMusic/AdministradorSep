@@ -113,6 +113,9 @@ body{
   font-weight:700;
   color:#fff;
   letter-spacing:.3px;
+  display:flex;
+  align-items:center;
+  gap:6px;
 }
 
 .thumbs{
@@ -137,7 +140,6 @@ body{
 .thumb:hover{transform:scale(1.06);border-color:#fff}
 .thumb.selected{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.5)}
 
-/* Avatar/letra dentro del thumb */
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb .initial{
   position:absolute;inset:0;
@@ -167,8 +169,8 @@ body{
 .btn-accion{
   border:none;
   border-radius:999px;
-  padding:26px 20px;
-  font-size:28px;
+  padding:22px 20px;
+  font-size:22px;
   font-weight:700;
   color:#fff;
   cursor:pointer;
@@ -211,7 +213,7 @@ body{
 @media(max-width:600px){.fila{grid-template-columns:1fr;gap:4px}}
 
 .fila label{
-  font-size:18px;
+  font-size:16px;
   font-weight:700;
   color:#fff;
   text-align:right;
