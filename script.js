@@ -130,31 +130,15 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  try {
-    const snap = await getDoc(doc(db, 'admins', user.uid));
-    if (!snap.exists()) {
-      await signOut(auth);
-      loginError.textContent = '🚫 Esta cuenta no tiene permisos de administrador.';
-      loginError.classList.add('show');
-      loginBtn.disabled = false;
-      loginBtn.innerHTML = 'Iniciar sesión con Google';
-      return;
-    }
+  // ⚠️ SIN verificación de admin — cualquier cuenta Google entra
+  adminActual = user;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').classList.add('active');
+  document.getElementById('userEmail').textContent = user.email || '';
+  document.getElementById('userPic').src = user.photoURL || '';
 
-    adminActual = user;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appScreen').classList.add('active');
-    document.getElementById('userEmail').textContent = user.email;
-    document.getElementById('userPic').src = user.photoURL || '';
-
-    // Escuchar suscripciones en tiempo real
-    escucharSuscripciones();
-  } catch (e) {
-    console.error('Verificación admin:', e);
-    loginError.textContent = 'Error verificando permisos: ' + e.message;
-    loginError.classList.add('show');
-    await signOut(auth);
-  }
+  // Escuchar suscripciones en tiempo real
+  escucharSuscripciones();
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -323,12 +307,9 @@ function renderSolicitudes(filtro = '') {
     </tr>
   `).join('');
 
-  // Listeners para los selects de estado
   tb.querySelectorAll('.estado-select').forEach(sel => {
-    sel.addEventListener('change', (e) => {
-      const uid = sel.dataset.uid;
-      const nuevoEstado = sel.value;
-      cambiarEstado(uid, nuevoEstado, sel);
+    sel.addEventListener('change', () => {
+      cambiarEstado(sel.dataset.uid, sel.value, sel);
     });
   });
 }
@@ -519,13 +500,6 @@ window.verComprobante = (uid) => {
   img.src = urlDirecta;
   img.style.cssText = 'width:100%;border-radius:10px;display:block;background:#000';
   img.alt = 'Comprobante de pago';
-
-  // Fallback: si tarda mucho, mostrar el link original
-  setTimeout(() => {
-    if (!img.complete || img.naturalWidth === 0) {
-      // todavía cargando, no hacemos nada
-    }
-  }, 5000);
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -548,7 +522,6 @@ async function cambiarEstado(uid, nuevoEstado, selElement) {
   );
 
   if (!ok) {
-    // Revertir el select
     if (selElement) selElement.value = estadoAnterior;
     return;
   }
@@ -556,14 +529,12 @@ async function cambiarEstado(uid, nuevoEstado, selElement) {
   try {
     if (selElement) selElement.disabled = true;
 
-    // SOLO actualizamos el campo "estado"
     await updateDoc(doc(db, 'suscripciones', uid), {
       estado: nuevoEstado,
       resueltoPor: adminActual.email,
       fechaResolucion: serverTimestamp()
     });
 
-    // Registro en actividad
     try {
       await addDoc(collection(db, 'actividad_admin'), {
         adminUID: adminActual.uid,
@@ -583,7 +554,6 @@ async function cambiarEstado(uid, nuevoEstado, selElement) {
     } catch (e) { console.warn('No se pudo registrar actividad:', e); }
 
     toast(`✅ Estado actualizado: ${etiquetaNuevo}`);
-    // El onSnapshot refrescará la tabla automáticamente
 
   } catch (e) {
     console.error('Error al cambiar estado:', e);
