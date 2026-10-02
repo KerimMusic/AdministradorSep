@@ -32,6 +32,7 @@ setPersistence(auth, browserLocalPersistence).catch(() => {});
 let adminActual = null;
 let unsubscribeSusc = null;
 let suscripciones = [];
+let filtroSolicitudes = 'pendiente';
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -48,14 +49,22 @@ const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({
 const diasRestantes = venc => venc ? Math.ceil((venc - new Date()) / 86400000) : 0;
 
 /* Mapeo estado → label visual */
-const ESTADOS = {
+const ESTADOS_UI = {
   pendiente: { label: '🟡 Pago en revisión', badge: 'pendiente' },
   activa:    { label: '🟢 Pago aprobado',    badge: 'activa' },
   rechazada: { label: '🔴 Pago rechazado',   badge: 'rechazada' }
 };
 
+/* Normaliza cualquier variante de estado a los 3 valores internos */
+function normalizarEstado(estado) {
+  const e = String(estado || 'pendiente').toLowerCase().trim();
+  if (['activa','activo','aprobada','aprobado','pago aprobado'].includes(e)) return 'activa';
+  if (['rechazada','rechazado','pago rechazado'].includes(e)) return 'rechazada';
+  return 'pendiente';
+}
+
 function labelEstado(estado) {
-  return ESTADOS[estado]?.label || '🟡 Pago en revisión';
+  return ESTADOS_UI[normalizarEstado(estado)].label;
 }
 
 function dropboxDirecto(url) {
@@ -190,11 +199,13 @@ function escucharSuscripciones() {
 
     const ahora = new Date();
     suscripciones.forEach(s => {
-      if (s.estado === 'activa') {
-        const v = aFecha(s.fechaVencimiento);
+      const est = normalizarEstado(s.estado);
+      if (est === 'activa') {
+        // Usar fechaVencimiento si existe; si no, fechaLimiteValidacion como respaldo
+        const v = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
         s._estadoEfectivo = (v && ahora >= v) ? 'expirada' : 'activa';
       } else {
-        s._estadoEfectivo = s.estado || 'pendiente';
+        s._estadoEfectivo = est;
       }
     });
 
@@ -210,7 +221,7 @@ function escucharSuscripciones() {
    ═══════════════════════════════════════════════════════════ */
 function renderTodo() {
   renderDashboard();
-  renderSolicitudes();
+  renderSolicitudes(document.getElementById('searchSolicitudes')?.value || '');
   renderActivas();
   renderPorVencer();
   renderExpiradas();
@@ -234,12 +245,12 @@ function renderDashboard() {
   const pend = suscripciones.filter(s => s._estadoEfectivo === 'pendiente');
   const act  = suscripciones.filter(s => s._estadoEfectivo === 'activa');
   const porV = act.filter(s => {
-    const d = diasRestantes(aFecha(s.fechaVencimiento));
+    const d = diasRestantes(aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion));
     return d >= 0 && d <= 7;
   });
   const exp  = suscripciones.filter(s => s._estadoEfectivo === 'expirada');
-  const apro = suscripciones.filter(s => s.estado === 'activa').length;
-  const rech = suscripciones.filter(s => s.estado === 'rechazada').length;
+  const apro = suscripciones.filter(s => normalizarEstado(s.estado) === 'activa').length;
+  const rech = suscripciones.filter(s => normalizarEstado(s.estado) === 'rechazada').length;
   const mens = act.filter(s => s.plan === 'mensual').length;
   const anua = act.filter(s => s.plan === 'anual').length;
 
@@ -270,64 +281,148 @@ function renderDashboard() {
       <td>${escapeHtml(s.nombre || '—')}</td>
       <td>${escapeHtml(s.correo || '—')}</td>
       <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td><span class="badge ${s._estadoEfectivo}">${s._estadoEfectivo}</span></td>
+      <td><span class="badge ${s._estadoEfectivo}">${labelEstado(s.estado)}</span></td>
       <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
     </tr>`).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════
-   SOLICITUDES (todas las suscripciones)
+   SOLICITUDES (formato tarjeta con comprobante + botones)
    ═══════════════════════════════════════════════════════════ */
 function renderSolicitudes(filtro = '') {
-  const q = filtro.toLowerCase().trim();
-  let lista = suscripciones;
+  const q = String(filtro || '').toLowerCase().trim();
+  let lista = [...suscripciones];
+
+  if (filtroSolicitudes !== 'todas') {
+    lista = lista.filter(s => normalizarEstado(s.estado) === filtroSolicitudes);
+  }
 
   if (q) {
     lista = lista.filter(s =>
       (s.nombre || '').toLowerCase().includes(q) ||
       (s.correo || '').toLowerCase().includes(q) ||
-      (s.uid || '').toLowerCase().includes(q)
+      (s.uid || s._id || '').toLowerCase().includes(q)
     );
   }
 
   lista.sort((a, b) => {
-    const fa = aFecha(b.fechaSolicitud)?.getTime() || 0;
-    const fb = aFecha(a.fechaSolicitud)?.getTime() || 0;
-    return fa - fb;
+    const fa = aFecha(a.fechaSolicitud)?.getTime() || 0;
+    const fb = aFecha(b.fechaSolicitud)?.getTime() || 0;
+    return fb - fa;
   });
 
-  const tb = document.getElementById('tablaSolicitudes');
-  if (!tb) return;
+  const cont = document.getElementById('listaSolicitudes');
+  if (!cont) return;
+
+  actualizarContadoresFiltros();
+
   if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="empty">No hay solicitudes registradas</td></tr>';
+    cont.innerHTML = '<div class="empty">No hay solicitudes para mostrar con este filtro</div>';
     return;
   }
 
-  tb.innerHTML = lista.map(s => `
-    <tr>
-      <td>${escapeHtml(s.nombre || '—')}</td>
-      <td>${escapeHtml(s.correo || '—')}</td>
-      <td style="font-family:monospace;font-size:11px">${escapeHtml(s.uid || '—')}</td>
-      <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtDinero(s.precio || s.monto)}</td>
-      <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
-      <td>
-        <select class="estado-select" data-uid="${escapeHtml(s.uid)}" data-estado="${escapeHtml(s.estado || 'pendiente')}">
-          <option value="pendiente" ${s.estado === 'pendiente' ? 'selected' : ''}>🟡 Pago en revisión</option>
-          <option value="activa" ${s.estado === 'activa' ? 'selected' : ''}>🟢 Pago aprobado</option>
-          <option value="rechazada" ${s.estado === 'rechazada' ? 'selected' : ''}>🔴 Pago rechazado</option>
-        </select>
-      </td>
-      <td>
-        ${s.comprobante
-          ? `<button class="btn btn-ghost btn-xs" onclick="verComprobante('${escapeHtml(s.uid)}')">👁️ Ver</button>`
-          : '<span style="color:var(--text2);font-size:11px">Sin comprobante</span>'}
-      </td>
-    </tr>
-  `).join('');
+  cont.innerHTML = lista.map(renderSolicitudCard).join('');
 
-  tb.querySelectorAll('.estado-select').forEach(sel => {
-    sel.addEventListener('change', () => cambiarEstado(sel.dataset.uid, sel.value, sel));
+  // Bind "Ver comprobante"
+  cont.querySelectorAll('[data-action="ver"]').forEach(btn => {
+    btn.onclick = () => window.verComprobante(btn.dataset.uid);
+  });
+
+  // Bind botones de estado
+  cont.querySelectorAll('[data-estado-btn]').forEach(btn => {
+    btn.onclick = () => cambiarEstado(btn.dataset.uid, btn.dataset.estadoBtn);
+  });
+}
+
+/* Construye el HTML de una tarjeta a partir de un doc real de Firebase */
+function renderSolicitudCard(s) {
+  const eNorm = normalizarEstado(s.estado);
+  const eUI   = ESTADOS_UI[eNorm];
+  const docId = s._id; // ID real del documento en Firestore
+
+  const fechaSol  = fmtFecha(aFecha(s.fechaSolicitud));
+  const fechaPago = s.fechaPago
+    ? (s.fechaPago?.toDate ? fmtFecha(s.fechaPago.toDate())
+       : fmtFecha(new Date(s.fechaPago)))
+    : '—';
+
+  const precio  = fmtDinero(s.monto ?? s.precio);
+  const planTxt = s.plan === 'anual'   ? '📆 Anual'
+                : s.plan === 'mensual' ? '📅 Mensual'
+                : (s.plan || '—');
+  const comp = s.comprobante || s.comprobanteURL;
+
+  return `
+    <article class="solicitud-card estado-${eNorm}">
+      <header class="sol-header">
+        <div class="sol-user">
+          <h3>${escapeHtml(s.nombre || 'Sin nombre')}</h3>
+          <span class="sol-correo">${escapeHtml(s.correo || '—')}</span>
+        </div>
+        <span class="badge ${eUI.badge}">${eUI.label}</span>
+      </header>
+
+      <div class="sol-info">
+        <div class="sol-item">
+          <label>UID</label>
+          <span class="mono">${escapeHtml(s.uid || docId || '—')}</span>
+        </div>
+        <div class="sol-item">
+          <label>Plan</label>
+          <span>${planTxt}</span>
+        </div>
+        <div class="sol-item">
+          <label>Precio</label>
+          <span class="precio">${precio}</span>
+        </div>
+        <div class="sol-item">
+          <label>Banco</label>
+          <span>${escapeHtml(s.banco || '—')}</span>
+        </div>
+        <div class="sol-item">
+          <label>Titular</label>
+          <span>${escapeHtml(s.nombreTitular || '—')}</span>
+        </div>
+        <div class="sol-item">
+          <label>Fecha de pago</label>
+          <span>${fechaPago}</span>
+        </div>
+        <div class="sol-item">
+          <label>Fecha de solicitud</label>
+          <span>${fechaSol}</span>
+        </div>
+      </div>
+
+      <div class="sol-footer">
+        <div class="sol-comp">
+          ${comp
+            ? `<button class="btn btn-ghost btn-sm" data-action="ver" data-uid="${escapeHtml(docId)}">
+                 👁️ Ver comprobante
+               </button>`
+            : `<span class="sin-comp">Sin comprobante registrado</span>`}
+        </div>
+
+        <div class="sol-estados">
+          ${['pendiente','activa','rechazada'].map(k => `
+            <button class="estado-btn ${k} ${eNorm === k ? 'active' : ''}"
+                    data-estado-btn="${k}"
+                    data-uid="${escapeHtml(docId)}">
+              ${ESTADOS_UI[k].label}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+/* Contadores en las pestañas de filtro */
+function actualizarContadoresFiltros() {
+  const counts = { pendiente: 0, activa: 0, rechazada: 0, todas: suscripciones.length };
+  suscripciones.forEach(s => { counts[normalizarEstado(s.estado)]++; });
+  document.querySelectorAll('.filter-count').forEach(el => {
+    const k = el.dataset.count;
+    if (k in counts) el.textContent = counts[k];
   });
 }
 
@@ -347,11 +442,11 @@ function renderActivas(filtro = '') {
   const tb = document.getElementById('tablaActivas');
   if (!tb) return;
   if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="empty">No hay suscripciones activas</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="empty">No hay suscripciones activas</td></tr>';
     return;
   }
   tb.innerHTML = lista.map(s => {
-    const venc = aFecha(s.fechaVencimiento);
+    const venc = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
     const dias = diasRestantes(venc);
     const colorDias = dias <= 3 ? 'red' : dias <= 7 ? 'yellow' : 'green';
     return `
@@ -359,31 +454,25 @@ function renderActivas(filtro = '') {
         <td>${escapeHtml(s.nombre || '—')}</td>
         <td>${escapeHtml(s.correo || '—')}</td>
         <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-        <td>${fmtFecha(aFecha(s.fechaInicio))}</td>
+        <td>${fmtFecha(aFecha(s.fechaInicio) || aFecha(s.fechaPago))}</td>
         <td>${fmtFecha(venc)}</td>
         <td><span class="stat-value ${colorDias}" style="font-size:14px;margin:0">${dias} días</span></td>
         <td><span class="badge activa">🟢 Pago aprobado</span></td>
-        <td>
-          <select class="estado-select" data-uid="${escapeHtml(s.uid)}" data-estado="${escapeHtml(s.estado)}">
-            <option value="pendiente" ${s.estado === 'pendiente' ? 'selected' : ''}>🟡 Pago en revisión</option>
-            <option value="activa" ${s.estado === 'activa' ? 'selected' : ''}>🟢 Pago aprobado</option>
-            <option value="rechazada" ${s.estado === 'rechazada' ? 'selected' : ''}>🔴 Pago rechazado</option>
-          </select>
-        </td>
       </tr>`;
   }).join('');
-  tb.querySelectorAll('.estado-select').forEach(sel => {
-    sel.addEventListener('change', () => cambiarEstado(sel.dataset.uid, sel.value, sel));
-  });
 }
 
 function renderPorVencer() {
   const lista = suscripciones.filter(s => s._estadoEfectivo === 'activa')
     .filter(s => {
-      const d = diasRestantes(aFecha(s.fechaVencimiento));
+      const d = diasRestantes(aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion));
       return d >= 0 && d <= 7;
     })
-    .sort((a, b) => diasRestantes(aFecha(a.fechaVencimiento)) - diasRestantes(aFecha(b.fechaVencimiento)));
+    .sort((a, b) => {
+      const da = diasRestantes(aFecha(a.fechaVencimiento) || aFecha(a.fechaLimiteValidacion));
+      const db = diasRestantes(aFecha(b.fechaVencimiento) || aFecha(b.fechaLimiteValidacion));
+      return da - db;
+    });
 
   const tb = document.getElementById('tablaPorVencer');
   if (!tb) return;
@@ -392,7 +481,7 @@ function renderPorVencer() {
     return;
   }
   tb.innerHTML = lista.map(s => {
-    const venc = aFecha(s.fechaVencimiento);
+    const venc = aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion);
     const d = diasRestantes(venc);
     return `
       <tr>
@@ -401,18 +490,9 @@ function renderPorVencer() {
         <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
         <td>${fmtFecha(venc)}</td>
         <td><span class="stat-value ${d <= 3 ? 'red' : 'yellow'}" style="font-size:14px;margin:0">${d} días</span></td>
-        <td>
-          <select class="estado-select" data-uid="${escapeHtml(s.uid)}" data-estado="${escapeHtml(s.estado)}">
-            <option value="pendiente" ${s.estado === 'pendiente' ? 'selected' : ''}>🟡 Pago en revisión</option>
-            <option value="activa" ${s.estado === 'activa' ? 'selected' : ''}>🟢 Pago aprobado</option>
-            <option value="rechazada" ${s.estado === 'rechazada' ? 'selected' : ''}>🔴 Pago rechazado</option>
-          </select>
-        </td>
+        <td><span class="badge activa">🟢 Pago aprobado</span></td>
       </tr>`;
   }).join('');
-  tb.querySelectorAll('.estado-select').forEach(sel => {
-    sel.addEventListener('change', () => cambiarEstado(sel.dataset.uid, sel.value, sel));
-  });
 }
 
 function renderExpiradas() {
@@ -428,19 +508,10 @@ function renderExpiradas() {
       <td>${escapeHtml(s.nombre || '—')}</td>
       <td>${escapeHtml(s.correo || '—')}</td>
       <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtFecha(aFecha(s.fechaInicio))}</td>
-      <td>${fmtFecha(aFecha(s.fechaVencimiento))}</td>
-      <td>
-        <select class="estado-select" data-uid="${escapeHtml(s.uid)}" data-estado="${escapeHtml(s.estado)}">
-          <option value="pendiente" ${s.estado === 'pendiente' ? 'selected' : ''}>🟡 Pago en revisión</option>
-          <option value="activa" ${s.estado === 'activa' ? 'selected' : ''}>🟢 Pago aprobado</option>
-          <option value="rechazada" ${s.estado === 'rechazada' ? 'selected' : ''}>🔴 Pago rechazado</option>
-        </select>
-      </td>
+      <td>${fmtFecha(aFecha(s.fechaInicio) || aFecha(s.fechaPago))}</td>
+      <td>${fmtFecha(aFecha(s.fechaVencimiento) || aFecha(s.fechaLimiteValidacion))}</td>
+      <td><span class="badge expirada">⚫ Expirada</span></td>
     </tr>`).join('');
-  tb.querySelectorAll('.estado-select').forEach(sel => {
-    sel.addEventListener('change', () => cambiarEstado(sel.dataset.uid, sel.value, sel));
-  });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -459,30 +530,31 @@ function renderHistorial(filtro = '') {
   const tb = document.getElementById('tablaHistorial');
   if (!tb) return;
   if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="empty">No hay pagos en el historial</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="empty">No hay pagos en el historial</td></tr>';
     return;
   }
-  tb.innerHTML = lista.map(s => `
+  tb.innerHTML = lista.map(s => {
+    const eNorm = normalizarEstado(s.estado);
+    return `
     <tr>
       <td>${escapeHtml(s.nombre || '—')}</td>
       <td>${escapeHtml(s.correo || '—')}</td>
       <td>${s.plan === 'anual' ? 'Anual' : 'Mensual'}</td>
-      <td>${fmtDinero(s.precio || s.monto)}</td>
+      <td>${fmtDinero(s.monto ?? s.precio)}</td>
       <td>${fmtFecha(aFecha(s.fechaSolicitud))}</td>
-      <td><span class="badge ${s.estado}">${labelEstado(s.estado)}</span></td>
-      <td>${escapeHtml(s.resueltoPor || '—')}</td>
-      <td>${fmtFecha(aFecha(s.fechaResolucion || s.fechaAprobacion))}</td>
+      <td><span class="badge ${ESTADOS_UI[eNorm].badge}">${ESTADOS_UI[eNorm].label}</span></td>
       <td>${s.comprobante
-        ? `<button class="btn btn-ghost btn-xs" onclick="verComprobante('${escapeHtml(s.uid)}')">👁️ Ver</button>`
+        ? `<button class="btn btn-ghost btn-xs" onclick="verComprobante('${escapeHtml(s._id)}')">👁️ Ver</button>`
         : '—'}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════
    VER COMPROBANTE (Dropbox)
    ═══════════════════════════════════════════════════════════ */
-window.verComprobante = (uid) => {
-  const s = suscripciones.find(x => x.uid === uid || x._id === uid);
+window.verComprobante = (docId) => {
+  const s = suscripciones.find(x => x._id === docId || x.uid === docId);
   if (!s) return toast('No se encontró la suscripción', 'error');
 
   const urlOriginal = s.comprobante || s.comprobanteURL;
@@ -512,7 +584,7 @@ window.verComprobante = (uid) => {
         <p style="color:var(--text2);font-size:14px;margin-bottom:16px">
           Verifica que el enlace de Dropbox sea público o permita su visualización.
         </p>
-        <a href="${escapeHtml(urlOriginal)}" target="_blank" rel="noopener" 
+        <a href="${escapeHtml(urlOriginal)}" target="_blank" rel="noopener"
            class="btn btn-primary btn-sm">🔗 Abrir enlace original</a>
         <p style="color:var(--text2);font-size:11px;margin-top:16px;word-break:break-all">
           ${escapeHtml(urlOriginal)}
@@ -525,64 +597,69 @@ window.verComprobante = (uid) => {
 };
 
 /* ═══════════════════════════════════════════════════════════
-   CAMBIAR ESTADO (ÚNICA ACCIÓN PERMITIDA)
+   CAMBIAR ESTADO (ÚNICO CAMPO EDITABLE)
    ═══════════════════════════════════════════════════════════ */
-async function cambiarEstado(uid, nuevoEstado, selElement) {
-  const s = suscripciones.find(x => x.uid === uid || x._id === uid);
+async function cambiarEstado(docId, nuevoEstado) {
+  const s = suscripciones.find(x => x._id === docId || x.uid === docId);
   if (!s) return toast('No se encontró la suscripción', 'error');
 
-  const estadoAnterior = s.estado || 'pendiente';
-  if (estadoAnterior === nuevoEstado) return;
+  const estadoAnterior = normalizarEstado(s.estado);
+  if (estadoAnterior === nuevoEstado) {
+    return toast('El estado ya es ese', 'warn');
+  }
 
-  const etiquetaNuevo = labelEstado(nuevoEstado);
-  const etiquetaAnterior = labelEstado(estadoAnterior);
+  const eAnt = ESTADOS_UI[estadoAnterior];
+  const eNew = ESTADOS_UI[nuevoEstado];
 
   const ok = confirm(
     `¿Cambiar el estado de "${s.nombre || s.correo}"?\n\n` +
-    `De: ${etiquetaAnterior}\n` +
-    `A:  ${etiquetaNuevo}`
+    `De:  ${eAnt.label}\n` +
+    `A:   ${eNew.label}\n\n` +
+    `⚠️ Solo se modificará el campo "estado".`
   );
+  if (!ok) return;
 
-  if (!ok) {
-    if (selElement) selElement.value = estadoAnterior;
-    return;
-  }
+  // Deshabilitar todos los botones de esa tarjeta mientras se guarda
+  const card = document.querySelector(`.solicitud-card .estado-btn[data-uid="${docId}"]`)
+                ?.closest('.solicitud-card');
+  card?.querySelectorAll('.estado-btn').forEach(b => b.disabled = true);
 
   try {
-    if (selElement) selElement.disabled = true;
-
-    await updateDoc(doc(db, 'suscripciones', uid), {
+    // ✅ Se actualiza SOLO el campo estado (+ auditoría)
+    await updateDoc(doc(db, 'suscripciones', s._id), {
       estado: nuevoEstado,
+      fechaUltimaActualizacion: serverTimestamp(),
       resueltoPor: adminActual.email,
       fechaResolucion: serverTimestamp()
     });
 
+    // Registro en actividad_admin
     try {
       await addDoc(collection(db, 'actividad_admin'), {
         adminUID: adminActual.uid,
         adminEmail: adminActual.email,
         adminNombre: adminActual.displayName || '',
-        accion: 'Cambió estado',
-        usuarioAfectadoUID: s.uid || '',
+        accion: 'Cambió estado de suscripción',
+        usuarioAfectadoUID: s.uid || s._id || '',
         usuarioAfectadoNombre: s.nombre || '',
         usuarioAfectadoCorreo: s.correo || '',
         detalles: {
           estadoAnterior,
           estadoNuevo: nuevoEstado,
-          etiqueta: etiquetaNuevo
+          etiqueta: eNew.label,
+          docId: s._id
         },
         fecha: serverTimestamp()
       });
     } catch (e) { console.warn('No se pudo registrar actividad:', e); }
 
-    toast(`✅ Estado actualizado: ${etiquetaNuevo}`);
+    toast(`✅ Estado actualizado: ${eNew.label}`);
+    // onSnapshot refresca la lista automáticamente
 
   } catch (e) {
     console.error('Error al cambiar estado:', e);
     toast('Error: ' + e.message, 'error');
-    if (selElement) selElement.value = estadoAnterior;
-  } finally {
-    if (selElement) selElement.disabled = false;
+    card?.querySelectorAll('.estado-btn').forEach(b => b.disabled = false);
   }
 }
 
@@ -592,6 +669,18 @@ async function cambiarEstado(uid, nuevoEstado, selElement) {
 document.getElementById('searchSolicitudes')?.addEventListener('input', e => renderSolicitudes(e.target.value));
 document.getElementById('searchActivas')?.addEventListener('input', e => renderActivas(e.target.value));
 document.getElementById('searchHistorial')?.addEventListener('input', e => renderHistorial(e.target.value));
+
+/* ═══════════════════════════════════════════════════════════
+   FILTROS DE SOLICITUDES
+   ═══════════════════════════════════════════════════════════ */
+document.querySelectorAll('.filter-tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    filtroSolicitudes = tab.dataset.filter;
+    renderSolicitudes(document.getElementById('searchSolicitudes')?.value || '');
+  };
+});
 
 /* ═══════════════════════════════════════════════════════════
    REFRESH
