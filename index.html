@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel Administrativo — OmegaBeats</title>
+<title>Revisión de Pagos — OmegaBeats Admin</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<!-- ══════════ LOGIN ══════════ -->
 <div id="loginScreen">
   <div class="login-card">
     <h1>Panel <span>Administrativo</span></h1>
@@ -25,255 +26,117 @@
   </div>
 </div>
 
+<!-- ══════════ APP ══════════ -->
 <div id="appScreen">
-  <div class="topbar">
-    <div style="display:flex;align-items:center;gap:12px">
-      <button class="menu-toggle" id="menuToggle">☰</button>
-      <div class="topbar-brand">🎵 Omega<span>Beats</span> · Admin</div>
+
+  <!-- Barra superior -->
+  <header class="topbar">
+    <div class="search-wrap">
+      <input id="buscador" type="text" placeholder="BUSCADOR">
     </div>
-    <div class="topbar-user">
-      <span class="email" id="userEmail">—</span>
-      <img id="userPic" src="" alt="">
-      <button class="btn btn-ghost btn-sm" id="logoutBtn">Salir</button>
+    <button id="btnBuscar" class="btn-buscar">Buscar</button>
+    <div class="admin-info">
+      <span class="admin-label">Administrador</span>
+      <img id="userPic" class="admin-avatar" src="" alt="">
     </div>
-  </div>
+  </header>
 
-  <div class="layout">
-    <aside class="sidebar" id="sidebar">
-      <button class="nav-item active" data-view="dashboard"><span class="icon">📊</span>Dashboard</button>
-      <button class="nav-item" data-view="solicitudes"><span class="icon">📥</span>Solicitudes<span class="count" id="cntPendientes">0</span></button>
-      <button class="nav-item" data-view="activas"><span class="icon">✅</span>Suscripciones activas<span class="count" id="cntActivas">0</span></button>
-      <button class="nav-item" data-view="porvencer"><span class="icon">⏰</span>Próximas a vencer</button>
-      <button class="nav-item" data-view="expiradas"><span class="icon">❌</span>Expiradas</button>
-      <button class="nav-item" data-view="historial"><span class="icon">📜</span>Historial de pagos</button>
-      <button class="nav-item" data-view="usuarios"><span class="icon">👥</span>Usuarios</button>
-      <button class="nav-item" data-view="configPagos"><span class="icon">🏦</span>Config. pagos</button>
-      <button class="nav-item" data-view="configPlanes"><span class="icon">💵</span>Config. planes</button>
-      <button class="nav-item" data-view="actividad"><span class="icon">📝</span>Actividad admin</button>
-    </aside>
+  <!-- Contenido principal -->
+  <main class="main">
 
-    <main class="main">
+    <!-- Columna izquierda -->
+    <section class="left-col">
 
-      <section class="view active" id="view-dashboard">
-        <div class="view-header">
-          <div><h2>Dashboard</h2><p>Resumen general del sistema de suscripciones</p></div>
-          <div class="view-actions">
-            <button class="btn btn-ghost btn-sm" id="refreshDash">🔄 Actualizar</button>
-          </div>
+      <div class="categoria">
+        <h3>Cuentas aceptadas</h3>
+        <div class="thumbs" id="thumbsAceptadas"></div>
+      </div>
+
+      <div class="categoria">
+        <h3>Cuentas en espera</h3>
+        <div class="thumbs" id="thumbsEspera"></div>
+      </div>
+
+      <div class="categoria">
+        <h3>Cuentas rechazadas</h3>
+        <div class="thumbs" id="thumbsRechazadas"></div>
+      </div>
+
+      <div class="acciones">
+        <button class="btn-accion espera"   id="btnEspera">Espera</button>
+        <button class="btn-accion aceptar"  id="btnAceptar">Aceptar</button>
+        <button class="btn-accion rechazar" id="btnRechazar">Rechazar</button>
+      </div>
+
+    </section>
+
+    <!-- Columna derecha (ficha del seleccionado) -->
+    <section class="right-col">
+      <div id="fichaVacia" class="ficha-vacia">
+        <p>Selecciona una cuenta para revisar sus datos</p>
+      </div>
+
+      <div id="ficha" class="ficha" style="display:none">
+        <div class="fila">
+          <label>ID de solicitud</label>
+          <input id="fIdSolicitud" readonly>
         </div>
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-label">📥 Pendientes</div><div class="stat-value yellow" id="statPendientes">0</div></div>
-          <div class="stat-card"><div class="stat-label">✅ Activas</div><div class="stat-value green" id="statActivas">0</div></div>
-          <div class="stat-card"><div class="stat-label">⏰ Próximas a vencer</div><div class="stat-value yellow" id="statPorVencer">0</div></div>
-          <div class="stat-card"><div class="stat-label">❌ Expiradas</div><div class="stat-value red" id="statExpiradas">0</div></div>
-          <div class="stat-card"><div class="stat-label">👍 Pagos aprobados</div><div class="stat-value green" id="statAprobados">0</div></div>
-          <div class="stat-card"><div class="stat-label">👎 Pagos rechazados</div><div class="stat-value red" id="statRechazados">0</div></div>
-          <div class="stat-card"><div class="stat-label">📅 Suscripciones mensuales</div><div class="stat-value blue" id="statMensuales">0</div></div>
-          <div class="stat-card"><div class="stat-label">📆 Suscripciones anuales</div><div class="stat-value blue" id="statAnuales">0</div></div>
+        <div class="fila">
+          <label>Plan</label>
+          <input id="fPlan" readonly>
         </div>
-        <div class="table-wrap">
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Estado</th><th>Fecha solicitud</th></tr></thead>
-              <tbody id="dashUltimasSolicitudes"></tbody>
-            </table>
-          </div>
+        <div class="fila">
+          <label>Precio</label>
+          <input id="fPrecio" readonly>
         </div>
-      </section>
-
-      <section class="view" id="view-solicitudes">
-        <div class="view-header">
-          <div>
-            <h2>Solicitudes de suscripción</h2>
-            <p>Revisa el comprobante y aprueba o rechaza el pago</p>
-          </div>
-          <div class="view-actions">
-            <button class="btn btn-ghost btn-sm" id="refreshSolicitudes">🔄 Actualizar</button>
-          </div>
+        <div class="fila">
+          <label>Titular</label>
+          <input id="fTitular" readonly>
         </div>
-
-        <div class="filter-tabs">
-          <button class="filter-tab active" data-filter="pendiente">
-            🟡 Pendientes <span class="filter-count" data-count="pendiente">0</span>
-          </button>
-          <button class="filter-tab" data-filter="activa">
-            🟢 Aprobadas <span class="filter-count" data-count="activa">0</span>
-          </button>
-          <button class="filter-tab" data-filter="rechazada">
-            🔴 Rechazadas <span class="filter-count" data-count="rechazada">0</span>
-          </button>
-          <button class="filter-tab" data-filter="todas">
-            📋 Todas <span class="filter-count" data-count="todas">0</span>
-          </button>
+        <div class="fila">
+          <label>Referencia</label>
+          <input id="fReferencia" readonly>
         </div>
-
-        <div class="search-box">
-          <input id="searchSolicitudes" placeholder="Buscar por nombre, correo o UID...">
+        <div class="fila">
+          <label>Banco</label>
+          <input id="fBanco" readonly>
         </div>
-
-        <div id="listaSolicitudes" class="solicitudes-grid"></div>
-      </section>
-
-      <section class="view" id="view-activas">
-        <div class="view-header">
-          <div><h2>Suscripciones activas</h2><p>Usuarios con suscripción vigente</p></div>
-          <div class="view-actions">
-            <button class="btn btn-ghost btn-sm" id="refreshActivas">🔄 Actualizar</button>
-          </div>
+        <div class="fila">
+          <label>Fecha de pago</label>
+          <input id="fFechaPago" readonly>
         </div>
-        <div class="search-box"><input id="searchActivas" placeholder="Buscar suscriptor..."></div>
-        <div class="table-wrap"><div class="table-scroll">
-          <table>
-            <thead><tr>
-              <th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th>
-              <th>Vencimiento</th><th>Días restantes</th><th>Estado</th>
-            </tr></thead>
-            <tbody id="tablaActivas"></tbody>
-          </table>
-        </div></div>
-      </section>
-
-      <section class="view" id="view-porvencer">
-        <div class="view-header">
-          <div><h2>Próximas a vencer</h2><p>Suscripciones que terminarán pronto</p></div>
+        <div class="fila">
+          <label>Solicitud creada</label>
+          <input id="fFechaSolicitud" readonly>
         </div>
-        <div class="table-wrap"><div class="table-scroll">
-          <table>
-            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Vencimiento</th><th>Días restantes</th><th>Estado</th></tr></thead>
-            <tbody id="tablaPorVencer"></tbody>
-          </table>
-        </div></div>
-      </section>
-
-      <section class="view" id="view-expiradas">
-        <div class="view-header">
-          <div><h2>Suscripciones expiradas</h2><p>Historial de suscripciones terminadas</p></div>
+        <div class="fila">
+          <label>Ultima actualizacion</label>
+          <input id="fFechaActualizacion" readonly>
         </div>
-        <div class="table-wrap"><div class="table-scroll">
-          <table>
-            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th><th>Vencimiento</th><th>Estado</th></tr></thead>
-            <tbody id="tablaExpiradas"></tbody>
-          </table>
-        </div></div>
-      </section>
-
-      <section class="view" id="view-historial">
-        <div class="view-header">
-          <div><h2>Historial de pagos</h2><p>Todos los pagos aprobados y rechazados</p></div>
+        <div class="fila">
+          <label>Fecha de inicio</label>
+          <input id="fFechaInicio" readonly>
         </div>
-        <div class="search-box"><input id="searchHistorial" placeholder="Buscar en el historial..."></div>
-        <div class="table-wrap"><div class="table-scroll">
-          <table>
-            <thead><tr>
-              <th>Usuario</th><th>Correo</th><th>Plan</th><th>Precio</th>
-              <th>Fecha solicitud</th><th>Estado</th><th>Comprobante</th>
-            </tr></thead>
-            <tbody id="tablaHistorial"></tbody>
-          </table>
-        </div></div>
-      </section>
-
-      <section class="view" id="view-usuarios">
-        <div class="view-header">
-          <div><h2>Buscar usuarios</h2><p>Busca por nombre, correo o UID</p></div>
+        <div class="fila">
+          <label>Fecha de vencimiento</label>
+          <input id="fFechaVencimiento" readonly>
         </div>
-        <div class="search-box"><input id="searchUsuarios" placeholder="Ej: Juan, correo@dominio.com, UID..."></div>
-        <div id="resultadoUsuarios" class="empty">Escribe algo para buscar usuarios</div>
-      </section>
-
-      <section class="view" id="view-configPagos">
-        <div class="view-header">
-          <div><h2>Configuración de datos de pago</h2><p>Datos bancarios que ven los usuarios</p></div>
+        <div class="fila">
+          <label>Comprobante</label>
+          <button id="btnVerTickque" class="btn-tickque">Ver Tickque</button>
         </div>
-        <div class="table-wrap" style="padding:24px">
-          <label class="cfg-label">Banco</label>
-          <input id="cfgBanco" class="cfg-input">
+      </div>
+    </section>
 
-          <label class="cfg-label">Titular</label>
-          <input id="cfgTitular" class="cfg-input">
-
-          <label class="cfg-label">CLABE</label>
-          <input id="cfgClabe" class="cfg-input">
-
-          <label class="cfg-label">Cuenta</label>
-          <input id="cfgCuenta" class="cfg-input">
-
-          <label class="cfg-label">WhatsApp soporte (con código de país, sin +)</label>
-          <input id="cfgWhats" class="cfg-input">
-
-          <label class="cfg-label">Instrucciones</label>
-          <textarea id="cfgInstrucciones" class="cfg-textarea"></textarea>
-
-          <div style="margin-top:20px">
-            <button class="btn btn-primary" id="saveConfigPagos">💾 Guardar cambios</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="view-configPlanes">
-        <div class="view-header">
-          <div><h2>Configuración de planes</h2><p>Precios y duración (afecta nuevos pagos)</p></div>
-        </div>
-        <div class="table-wrap" style="padding:24px">
-          <h3 style="margin:0 0 12px;font-size:15px">📅 Suscripción Mensual</h3>
-          <label class="cfg-label">Precio MXN</label>
-          <input id="cfgMensualPrecio" type="number" step="0.01" class="cfg-input">
-          <label class="cfg-label">Duración (meses)</label>
-          <input id="cfgMensualDur" type="number" class="cfg-input" style="margin-bottom:24px">
-
-          <h3 style="margin:0 0 12px;font-size:15px">📆 Suscripción Anual</h3>
-          <label class="cfg-label">Precio MXN</label>
-          <input id="cfgAnualPrecio" type="number" step="0.01" class="cfg-input">
-          <label class="cfg-label">Duración (meses)</label>
-          <input id="cfgAnualDur" type="number" class="cfg-input" style="margin-bottom:24px">
-
-          <button class="btn btn-primary" id="saveConfigPlanes">💾 Guardar cambios</button>
-          <p style="font-size:12px;color:var(--text2);margin-top:12px">⚠️ Las suscripciones ya activas no cambian automáticamente.</p>
-        </div>
-      </section>
-
-      <section class="view" id="view-actividad">
-        <div class="view-header">
-          <div><h2>Actividad administrativa</h2><p>Registro de acciones realizadas por administradores</p></div>
-        </div>
-        <div class="table-wrap"><div class="table-scroll">
-          <table>
-            <thead><tr><th>Fecha</th><th>Administrador</th><th>Acción</th><th>Usuario afectado</th><th>Detalles</th></tr></thead>
-            <tbody id="tablaActividad"></tbody>
-          </table>
-        </div></div>
-      </section>
-
-    </main>
-  </div>
+  </main>
 </div>
 
+<!-- ══════════ MODAL COMPROBANTE ══════════ -->
 <div class="modal" id="modalImg">
-  <div class="modal-box wide">
+  <div class="modal-box">
     <button class="modal-close" data-close="modalImg">×</button>
     <h2>Comprobante de pago</h2>
     <div id="imgViewer"><div class="loading-full">Cargando imagen...</div></div>
-  </div>
-</div>
-
-<div class="modal" id="modalDetalle">
-  <div class="modal-box wide">
-    <button class="modal-close" data-close="modalDetalle">×</button>
-    <h2>Detalle de suscripción</h2>
-    <div id="detalleContenido"></div>
-  </div>
-</div>
-
-<div class="modal" id="modalConfirm">
-  <div class="modal-box">
-    <button class="modal-close" data-close="modalConfirm">×</button>
-    <h2 id="confirmTitle">Confirmar</h2>
-    <p class="confirm-text" id="confirmText"></p>
-    <div id="confirmExtra"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="confirmCancel">Cancelar</button>
-      <button class="btn btn-primary" id="confirmOk">Confirmar</button>
-    </div>
   </div>
 </div>
 
