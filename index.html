@@ -12,7 +12,7 @@
 <div id="loginScreen">
   <div class="login-card">
     <h1>Panel <span>Administrativo</span></h1>
-    <p>Acceso para administradores de OmegaBeats</p>
+    <p>Acceso exclusivo para administradores autorizados</p>
     <button id="loginBtn" class="btn-google">
       <svg width="18" height="18" viewBox="0 0 24 24">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -29,7 +29,6 @@
 <!-- ══════════ APP ══════════ -->
 <div id="appScreen">
 
-  <!-- Barra superior -->
   <header class="topbar">
     <div class="search-wrap">
       <input id="buscador" type="text" placeholder="BUSCADOR">
@@ -41,36 +40,35 @@
     </div>
   </header>
 
-  <!-- Contenido principal -->
   <main class="main">
 
     <!-- Columna izquierda -->
     <section class="left-col">
 
       <div class="categoria">
-        <h3>Cuentas aceptadas</h3>
+        <h3>🟢 Cuentas aceptadas</h3>
         <div class="thumbs" id="thumbsAceptadas"></div>
       </div>
 
       <div class="categoria">
-        <h3>Cuentas en espera</h3>
+        <h3>🟡 Cuentas en espera</h3>
         <div class="thumbs" id="thumbsEspera"></div>
       </div>
 
       <div class="categoria">
-        <h3>Cuentas rechazadas</h3>
+        <h3>🔴 Cuentas rechazadas</h3>
         <div class="thumbs" id="thumbsRechazadas"></div>
       </div>
 
       <div class="acciones">
-        <button class="btn-accion espera"   id="btnEspera">Espera</button>
-        <button class="btn-accion aceptar"  id="btnAceptar">Aceptar</button>
-        <button class="btn-accion rechazar" id="btnRechazar">Rechazar</button>
+        <button class="btn-accion espera"   id="btnEspera">🟡 Pago en revisión</button>
+        <button class="btn-accion aceptar"  id="btnAceptar">🟢 Pago aprobado</button>
+        <button class="btn-accion rechazar" id="btnRechazar">🔴 Pago rechazado</button>
       </div>
 
     </section>
 
-    <!-- Columna derecha (ficha del seleccionado) -->
+    <!-- Columna derecha (ficha) -->
     <section class="right-col">
       <div id="fichaVacia" class="ficha-vacia">
         <p>Selecciona una cuenta para revisar sus datos</p>
@@ -78,8 +76,24 @@
 
       <div id="ficha" class="ficha" style="display:none">
         <div class="fila">
+          <label>Nombre</label>
+          <input id="fNombre" readonly>
+        </div>
+        <div class="fila">
+          <label>Correo</label>
+          <input id="fCorreo" readonly>
+        </div>
+        <div class="fila">
+          <label>UID</label>
+          <input id="fUid" readonly>
+        </div>
+        <div class="fila">
           <label>ID de solicitud</label>
-          <input id="fIdSolicitud" readonly>
+          <input id="fSolicitudId" readonly>
+        </div>
+        <div class="fila">
+          <label>Estado actual</label>
+          <input id="fEstado" readonly>
         </div>
         <div class="fila">
           <label>Plan</label>
@@ -90,16 +104,20 @@
           <input id="fPrecio" readonly>
         </div>
         <div class="fila">
+          <label>Monto registrado</label>
+          <input id="fMonto" readonly>
+        </div>
+        <div class="fila">
           <label>Titular</label>
           <input id="fTitular" readonly>
         </div>
         <div class="fila">
-          <label>Referencia</label>
-          <input id="fReferencia" readonly>
-        </div>
-        <div class="fila">
           <label>Banco</label>
           <input id="fBanco" readonly>
+        </div>
+        <div class="fila">
+          <label>Referencia</label>
+          <input id="fReferencia" readonly>
         </div>
         <div class="fila">
           <label>Fecha de pago</label>
@@ -110,20 +128,16 @@
           <input id="fFechaSolicitud" readonly>
         </div>
         <div class="fila">
-          <label>Ultima actualizacion</label>
+          <label>Última actualización</label>
           <input id="fFechaActualizacion" readonly>
         </div>
         <div class="fila">
-          <label>Fecha de inicio</label>
-          <input id="fFechaInicio" readonly>
-        </div>
-        <div class="fila">
-          <label>Fecha de vencimiento</label>
-          <input id="fFechaVencimiento" readonly>
+          <label>Fecha límite validación</label>
+          <input id="fFechaLimite" readonly>
         </div>
         <div class="fila">
           <label>Comprobante</label>
-          <button id="btnVerTickque" class="btn-tickque">Ver Tickque</button>
+          <button id="btnVerTickque" class="btn-tickque">👁️ Ver ticket</button>
         </div>
       </div>
     </section>
