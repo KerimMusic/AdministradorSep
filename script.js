@@ -5,7 +5,7 @@ import {
   setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, getDoc, doc, updateDoc,
+  getFirestore, collection, doc, updateDoc,
   addDoc, serverTimestamp, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -16,7 +16,7 @@ const firebaseConfig = {
   storageBucket: "kerim-music-a9c46.firebasestorage.app",
   messagingSenderId: "470731440209",
   appId: "1:470731440209:web:f6eba4784027a5d8c57870",
-  measurementId: "G-LBHTKL8KD8"
+  measurementId: "G-LBHTKL8KDK"
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -93,7 +93,7 @@ document.querySelectorAll('.modal').forEach(m => {
 });
 
 /* ═══════════════════════════════════════════════════════════
-   LOGIN
+   LOGIN (ACCESO LIBRE - sin verificación de admin)
    ═══════════════════════════════════════════════════════════ */
 const loginBtn   = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
@@ -130,27 +130,7 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  // Verificar que sea admin
-  try {
-    const snap = await getDoc(doc(db, 'admins', user.uid));
-    if (!snap.exists()) {
-      await signOut(auth);
-      loginError.textContent = '🚫 Esta cuenta no tiene permisos de administrador.';
-      loginError.classList.add('show');
-      loginBtn.disabled = false;
-      loginBtn.innerHTML = 'Iniciar sesión con Google';
-      return;
-    }
-  } catch (e) {
-    console.error('Verificación admin:', e);
-    await signOut(auth);
-    loginError.textContent = 'Error verificando permisos: ' + e.message;
-    loginError.classList.add('show');
-    loginBtn.disabled = false;
-    loginBtn.innerHTML = 'Iniciar sesión con Google';
-    return;
-  }
-
+  // ✅ ACCESO LIBRE: cualquier cuenta de Google entra
   adminActual = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').classList.add('active');
