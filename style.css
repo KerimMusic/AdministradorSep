@@ -142,6 +142,57 @@ tbody tr:hover{background:rgba(255,255,255,.02)}
 .cfg-textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:11px 13px;border-radius:9px;font-size:14px;outline:none;min-height:90px;resize:vertical;font-family:inherit;margin-bottom:14px}
 .cfg-textarea:focus{border-color:var(--accent)}
 
+/* ═══════════ FILTROS DE SOLICITUDES ═══════════ */
+.filter-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.filter-tab{background:var(--panel);border:1px solid var(--border);color:var(--text2);
+  padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;
+  transition:all .15s;display:inline-flex;align-items:center;gap:8px}
+.filter-tab:hover{background:var(--panel2);color:var(--text)}
+.filter-tab.active{background:var(--accent);border-color:var(--accent);color:#000}
+.filter-count{background:rgba(255,255,255,.1);padding:2px 8px;border-radius:999px;
+  font-size:11px;font-weight:700}
+.filter-tab.active .filter-count{background:rgba(0,0,0,.15);color:#000}
+
+/* ═══════════ TARJETAS DE SOLICITUD ═══════════ */
+.solicitudes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px}
+@media(max-width:640px){.solicitudes-grid{grid-template-columns:1fr}}
+
+.solicitud-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:18px;display:flex;flex-direction:column;gap:14px;position:relative;
+  overflow:hidden;transition:border-color .15s,transform .15s}
+.solicitud-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.solicitud-card.estado-pendiente::before{background:var(--warn)}
+.solicitud-card.estado-activa::before{background:var(--accent)}
+.solicitud-card.estado-rechazada::before{background:var(--danger)}
+.solicitud-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+
+.sol-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.sol-user h3{font-size:16px;font-weight:700;margin:0 0 3px;letter-spacing:-.2px}
+.sol-correo{font-size:12px;color:var(--text2);word-break:break-all}
+
+.sol-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.sol-item{background:var(--panel2);padding:8px 11px;border-radius:8px;min-width:0}
+.sol-item label{display:block;font-size:10px;color:var(--text2);text-transform:uppercase;
+  letter-spacing:.6px;font-weight:700;margin-bottom:3px}
+.sol-item span{font-size:13px;font-weight:500;word-break:break-all;display:block}
+.sol-item span.mono{font-family:ui-monospace,SFMono-Regular,monospace;font-size:11px;color:var(--text2)}
+.sol-item span.precio{color:var(--accent);font-weight:700;font-size:14px}
+
+.sol-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)}
+.sin-comp{font-size:12px;color:var(--text2);font-style:italic}
+
+.sol-estados{display:flex;gap:6px;flex-wrap:wrap}
+.estado-btn{padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+  border:1.5px solid var(--border);background:var(--panel2);color:var(--text2);
+  transition:all .15s;white-space:nowrap}
+.estado-btn:hover{transform:translateY(-1px)}
+.estado-btn.pendiente.active{background:#5a4b00;color:#ffd76a;border-color:#7a6800}
+.estado-btn.activa.active{background:#0a3a22;color:#4ade80;border-color:#0a5a32}
+.estado-btn.rechazada.active{background:#4a1414;color:#ff7a7a;border-color:#6a1e1e}
+.estado-btn.active{font-weight:700}
+.estado-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
 @media (max-width:900px){
   .layout{grid-template-columns:1fr}
   .sidebar{position:fixed;left:0;top:60px;width:260px;height:calc(100vh - 60px);transform:translateX(-100%);transition:transform .25s;z-index:99}
