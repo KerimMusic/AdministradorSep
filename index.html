@@ -88,12 +88,12 @@
             <button class="btn btn-ghost btn-sm" id="refreshSolicitudes">🔄 Actualizar</button>
           </div>
         </div>
-        <div class="search-box"><input id="searchSolicitudes" placeholder="Buscar por nombre, correo, UID o teléfono..."></div>
+        <div class="search-box"><input id="searchSolicitudes" placeholder="Buscar por nombre, correo o UID..."></div>
         <div class="table-wrap"><div class="table-scroll">
           <table>
             <thead><tr>
-              <th>Usuario</th><th>Correo</th><th>UID</th><th>Teléfono</th>
-              <th>Plan</th><th>Precio</th><th>Fecha</th><th>Estado</th><th>Comprobante</th><th>Acciones</th>
+              <th>Usuario</th><th>Correo</th><th>UID</th>
+              <th>Plan</th><th>Precio</th><th>Fecha</th><th>Estado</th><th>Comprobante</th>
             </tr></thead>
             <tbody id="tablaSolicitudes"></tbody>
           </table>
@@ -112,7 +112,7 @@
           <table>
             <thead><tr>
               <th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th>
-              <th>Vencimiento</th><th>Días restantes</th><th>Estado</th><th>Acciones</th>
+              <th>Vencimiento</th><th>Días restantes</th><th>Estado</th>
             </tr></thead>
             <tbody id="tablaActivas"></tbody>
           </table>
@@ -125,7 +125,7 @@
         </div>
         <div class="table-wrap"><div class="table-scroll">
           <table>
-            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Vencimiento</th><th>Días restantes</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Vencimiento</th><th>Días restantes</th><th>Estado</th></tr></thead>
             <tbody id="tablaPorVencer"></tbody>
           </table>
         </div></div>
@@ -137,7 +137,7 @@
         </div>
         <div class="table-wrap"><div class="table-scroll">
           <table>
-            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th><th>Vencimiento</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Usuario</th><th>Correo</th><th>Plan</th><th>Inicio</th><th>Vencimiento</th><th>Estado</th></tr></thead>
             <tbody id="tablaExpiradas"></tbody>
           </table>
         </div></div>
@@ -152,7 +152,7 @@
           <table>
             <thead><tr>
               <th>Usuario</th><th>Correo</th><th>Plan</th><th>Precio</th>
-              <th>Fecha solicitud</th><th>Estado</th><th>Aprobado/Rechazado por</th><th>Fecha resolución</th><th>Comprobante</th>
+              <th>Fecha solicitud</th><th>Estado</th><th>Comprobante</th>
             </tr></thead>
             <tbody id="tablaHistorial"></tbody>
           </table>
@@ -161,7 +161,7 @@
 
       <section class="view" id="view-usuarios">
         <div class="view-header">
-          <div><h2>Buscar usuarios</h2><p>Busca por nombre, correo, UID o teléfono</p></div>
+          <div><h2>Buscar usuarios</h2><p>Busca por nombre, correo o UID</p></div>
         </div>
         <div class="search-box"><input id="searchUsuarios" placeholder="Ej: Juan, correo@dominio.com, UID..."></div>
         <div id="resultadoUsuarios" class="empty">Escribe algo para buscar usuarios</div>
@@ -263,46 +263,9 @@
   </div>
 </div>
 
-<div class="modal" id="modalRenovar">
-  <div class="modal-box">
-    <button class="modal-close" data-close="modalRenovar">×</button>
-    <h2>Renovar suscripción</h2>
-    <p class="confirm-text" id="renovarUser"></p>
-    <label>Nuevo plan</label>
-    <select id="renovarPlan">
-      <option value="mensual">Mensual — $399.90 MXN</option>
-      <option value="anual">Anual — $500.00 MXN</option>
-    </select>
-    <label>Motivo (opcional)</label>
-    <textarea id="renovarMotivo" placeholder="Ej: Pago confirmado por transferencia directa..."></textarea>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" data-close="modalRenovar">Cancelar</button>
-      <button class="btn btn-primary" id="renovarOk">Renovar</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="modalActivar">
-  <div class="modal-box">
-    <button class="modal-close" data-close="modalActivar">×</button>
-    <h2>Activar manualmente</h2>
-    <p class="confirm-text" id="activarUser"></p>
-    <label>Plan</label>
-    <select id="activarPlan">
-      <option value="mensual">Mensual — $399.90 MXN</option>
-      <option value="anual">Anual — $500.00 MXN</option>
-    </select>
-    <label>Motivo de la activación manual *</label>
-    <textarea id="activarMotivo" placeholder="Ej: Pago recibido en efectivo..." required></textarea>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" data-close="modalActivar">Cancelar</button>
-      <button class="btn btn-primary" id="activarOk">Activar</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
-<script type="module" src="script.js"></script>
+<!-- ✅ CORREGIDO: ahora apunta a admin.js -->
+<script type="module" src="admin.js"></script>
 </body>
 </html>
